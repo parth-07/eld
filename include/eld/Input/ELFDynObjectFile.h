@@ -8,6 +8,7 @@
 
 #include "eld/Input/ELFFileBase.h"
 #include "eld/Input/Input.h"
+#include <sys/types.h>
 
 namespace eld {
 
@@ -35,8 +36,51 @@ public:
 
   std::string getFallbackSOName() const;
 
+  void setVerDefSection(ELFSection *S) { VerDefSection = S; }
+
+  ELFSection *getVerDefSection() const { return VerDefSection; }
+
+  void setVerNeedSection(ELFSection *S) { VerNeedSection = S; }
+
+  ELFSection *getVerNeedSection() const { return VerNeedSection; }
+
+  void setVerSymSection(ELFSection *S) { VerSymSection = S; }
+
+  ELFSection *getVerSymSection() const { return VerSymSection; }
+
+  void setVerDefs(std::vector<uint32_t> VDefs) {
+    VerDefs = VDefs;
+  }
+
+  const std::vector<uint32_t> &getVerDefs() const { return VerDefs; }
+
+  void setVerNeeds(std::vector<uint32_t> VNeeds) {
+    VerNeeds = VNeeds;
+  }
+
+  const std::vector<uint32_t> &getVerNeeds() const { return VerNeeds; }
+
+  void setVerSyms(std::vector<uint16_t> VSyms) {
+    VerSyms = VSyms;
+  }
+
+  const std::vector<uint16_t> &getVerSyms() const { return VerSyms; }
+
+  void setDynStrTabSection(ELFSection *S) {
+    DynStrTabSection = S;
+  }
+
+  llvm::StringRef getDynStringTable() const;
+
 private:
   std::vector<ELFSection *> Sections;
+  ELFSection *VerDefSection = nullptr;
+  ELFSection *VerNeedSection = nullptr;
+  ELFSection *VerSymSection = nullptr;
+  ELFSection *DynStrTabSection = nullptr;
+  std::vector<uint32_t> VerDefs;
+  std::vector<uint32_t> VerNeeds;
+  std::vector<uint16_t> VerSyms;
 };
 
 } // namespace eld

@@ -6,6 +6,7 @@
 
 #include "eld/Input/ELFDynObjectFile.h"
 #include "eld/Support/Memory.h"
+#include "eld/Readers/ELFSection.h"
 
 using namespace eld;
 
@@ -29,4 +30,10 @@ std::string ELFDynObjectFile::getFallbackSOName() const {
   if (filename[0] == ':')
     return filename.substr(1);
   return I->getResolvedPath().filename().native();
+}
+
+llvm::StringRef ELFDynObjectFile::getDynStringTable() const {
+  if (DynStrTabSection)
+    return DynStrTabSection->getContents();
+  return llvm::StringRef();
 }
