@@ -212,7 +212,7 @@ LDSymbol *IRBuilder::addSymbol(InputFile &Input, const std::string &SymbolName,
 
       LDSymbol *InputSym =
           addSymbolFromDynObj(Input, Name, Type, Desc, Binding, Size, Value,
-                              Vis, Shndx, IsPostLtoPhase);
+                              Vis, Shndx, IsPostLtoPhase, Idx);
       if (InputSym)
         llvm::cast<ELFDynObjectFile>(&Input)->addSymbol(InputSym);
       return InputSym;
@@ -308,7 +308,8 @@ LDSymbol *IRBuilder::addSymbolFromDynObj(
     InputFile &Input, const std::string &SymbolName, ResolveInfo::Type Type,
     ResolveInfo::Desc Desc, ResolveInfo::Binding Binding,
     ResolveInfo::SizeType Size, LDSymbol::ValueType Value,
-    ResolveInfo::Visibility Visibility, uint32_t Shndx, bool IsPostLtoPhase) {
+    ResolveInfo::Visibility Visibility, uint32_t Shndx, bool IsPostLtoPhase,
+    uint32_t SymIdx) {
   // We don't need sections of dynamic objects. So we ignore section symbols.
   if (Type == ResolveInfo::Section)
     return nullptr;
@@ -346,6 +347,40 @@ LDSymbol *IRBuilder::addSymbolFromDynObj(
   auto NewErrorCount = DP->getNumErrors() + DP->getNumFatalErrors();
   if (NewErrorCount != OldErrorCount)
     return nullptr;
+
+  const ELFDynObjectFile *DynObjFile = llvm::cast<ELFDynObjectFile>(&Input);
+  const auto &VerDefs = DynObjFile->getVerDefs();
+  const auto &VerNeeds = DynObjFile->getVerNeeds();
+  const auto &VerSyms = DynObjFile->getVerSyms();
+  uint16_t VerID = VerSyms[SymIdx] & ~llvm::ELF::VERSYM_HIDDEN;
+  bool isDefaultSymbol = (VerSyms[SymIdx] == VerID);
+  std::string VerName;
+  llvm::errs() << "[IRBuilder::addSymbolFromDynObj] SymbolName: " << SymbolName
+               << ", VerID: " << VerID << "\n";
+  if (Desc == ResolveInfo::Desc::Undefined) {
+    if (VerSyms[SymIdx] != llvm::ELF::VER_NDX_LOCAL &&
+        VerSyms[SymIdx] != llvm::ELF::VER_NDX_GLOBAL) {
+      VerName = DynObjFile->getDynStringTable().data() + VerNeeds[VerID];
+      // llvm::errs() << "[IRBuilder::addSymbolFromDynObj] SymbolName: "
+      //              << SymbolName << ", VerName: " << VerName
+      //              << ", Offset: " << VerNeeds[VerID] << "\n";
+    }
+  } else {
+    if (VerSyms[SymIdx] != llvm::ELF::VER_NDX_GLOBAL) {
+      VerName = DynObjFile->getDynStringTable().data() + VerDefs[VerID];
+      // llvm::errs() << "[IRBuilder::addSymbolFromDynObj] SymbolName: "
+      //              << SymbolName << ", VerName: " << VerName
+      //              << ", Offset: " << VerDefs[VerID] << "\n";
+    }
+  }
+
+  if (isDefaultSymbol)
+    NP.insertNonLocalSymbol(InputSymbolResolveInfo, *InputSym, IsPostLtoPhase,
+                            ResolvedResult);
+
+  if (!VerName.empty()) {
+    InputSymbolResolveInfo.setName(Saver.save(VerName));
+  }
   // Resolve symbol
   bool S = NP.insertNonLocalSymbol(InputSymbolResolveInfo, *InputSym,
                                    IsPostLtoPhase, ResolvedResult);

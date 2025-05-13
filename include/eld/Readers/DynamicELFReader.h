@@ -53,9 +53,20 @@ public:
   eld::Expected<ELFSection *>
   createSection(typename ELFReader<ELFT>::Elf_Shdr rawSectHdr) override;
 
+  void
+  setSectionInInputFile(ELFSection *S,
+                        typename ELFReader<ELFT>::Elf_Shdr rawSectHdr) override;
+
+  eld::Expected<void> readSections() override;
+
 protected:
   explicit DynamicELFReader(Module &module, InputFile &inputFile,
                             plugin::DiagnosticEntry &diagEntry);
+
+private:
+  eld::Expected<void> readVerDefSection();
+  eld::Expected<void> readVerSymSection();
+  eld::Expected<void> readVerNeedSection();
 };
 } // namespace eld
 #endif
