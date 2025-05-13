@@ -6,6 +6,7 @@
 
 #include "eld/Input/ELFDynObjectFile.h"
 #include "eld/Support/Memory.h"
+#include "eld/Readers/ELFSection.h"
 
 using namespace eld;
 
@@ -19,4 +20,10 @@ bool ELFDynObjectFile::isELFNeeded() {
   if (!getInput()->getAttribute().isAsNeeded())
     return true;
   return isUsed();
+}
+
+llvm::StringRef ELFDynObjectFile::getDynStringTable() const {
+  if (DynStrTabSection)
+    return DynStrTabSection->getContents();
+  return llvm::StringRef();
 }
