@@ -11,6 +11,7 @@
 #include "eld/Readers/ELFSection.h"
 #include "eld/SymbolResolver/LDSymbol.h"
 #include "eld/SymbolResolver/ResolveInfo.h"
+#include "llvm/BinaryFormat/ELF.h"
 
 namespace eld {
 template <class ELFT>
@@ -173,6 +174,135 @@ eld::Expected<ELFSection *> DynamicELFReader<ELFT>::createSection(
           rawSectHdr.sh_entsize);
 
   return section;
+}
+
+template <class ELFT>
+void DynamicELFReader<ELFT>::setSectionInInputFile(
+    ELFSection *S, typename ELFReader<ELFT>::Elf_Shdr RawSectHdr) {
+  ELFReader<ELFT>::setSectionInInputFile(S, RawSectHdr);
+  ELFDynObjectFile *DynObjFile =
+      llvm::cast<ELFDynObjectFile>(&this->m_InputFile);
+
+  switch (RawSectHdr.sh_type) {
+  case llvm::ELF::SHT_GNU_verdef:
+    DynObjFile->setVerDefSection(S);
+    break;
+  case llvm::ELF::SHT_GNU_verneed:
+    DynObjFile->setVerNeedSection(S);
+    break;
+  case llvm::ELF::SHT_GNU_versym:
+    DynObjFile->setVerSymSection(S);
+    break;
+  case llvm::ELF::SHT_STRTAB:
+    if (S->name() == ".dynstr")
+      DynObjFile->setDynStrTabSection(S);
+  }
+}
+
+template <class ELFT>
+eld::Expected<void> DynamicELFReader<ELFT>::readSections() {
+  ELFDynObjectFile *DynObjFile =
+      llvm::cast<ELFDynObjectFile>(&this->m_InputFile);
+  if (DynObjFile->getVerDefSection()) {
+    auto expReadVerDef = readVerDefSection();
+    ELDEXP_RETURN_DIAGENTRY_IF_ERROR(expReadVerDef);
+  }
+  if (DynObjFile->getVerNeedSection()) {
+    auto expReadVerNeed = readVerNeedSection();
+    ELDEXP_RETURN_DIAGENTRY_IF_ERROR(expReadVerNeed);
+  }
+  if (DynObjFile->getVerSymSection()) {
+    auto expReadVerSym = readVerSymSection();
+    ELDEXP_RETURN_DIAGENTRY_IF_ERROR(expReadVerSym);
+  }
+  return {};
+}
+
+template <class ELFT>
+eld::Expected<void> DynamicELFReader<ELFT>::readVerDefSection() {
+  ELFDynObjectFile *DynObjFile =
+      llvm::cast<ELFDynObjectFile>(&this->m_InputFile);
+  const ELFSection *S = DynObjFile->getVerDefSection();
+  if (!S)
+    return {};
+  ASSERT(S->getType() == llvm::ELF::SHT_GNU_verdef,
+         "S must be SHT_GNU_verdef section");
+  std::vector<uint32_t> Verdefs;
+  const uint8_t *Verdef =
+      reinterpret_cast<const uint8_t *>(S->getContents().data());
+  for (unsigned i = 0, e = S->getInfo(); i < e; ++i) {
+    auto *CurVerdef = reinterpret_cast<const typename ELFT::Verdef *>(Verdef);
+    Verdef += CurVerdef->vd_next;
+    unsigned CurVerdefIndex = CurVerdef->vd_ndx;
+    if (CurVerdefIndex >= Verdefs.size())
+      Verdefs.resize(CurVerdefIndex + 1);
+    auto *CurVerdaux = CurVerdef->getAux();
+    Verdefs[CurVerdefIndex] = CurVerdaux->vda_name;
+  }
+  DynObjFile->setVerDefs(std::move(Verdefs));
+  return {};
+}
+
+template <class ELFT>
+eld::Expected<void> DynamicELFReader<ELFT>::readVerNeedSection() {
+  ELFDynObjectFile *DynObjFile =
+      llvm::cast<ELFDynObjectFile>(&this->m_InputFile);
+  const ELFSection *S = DynObjFile->getVerNeedSection();
+  if (!S)
+    return {};
+  ASSERT(S->getType() == llvm::ELF::SHT_GNU_verneed,
+         "S must be SHT_GNU_verneed section");
+  std::vector<uint32_t> VerNeeds;
+  const uint8_t *VerNeedBuf =
+      reinterpret_cast<const uint8_t *>(S->getContents().data());
+  for (unsigned i = 0, e = S->getInfo(); i < e; ++i) {
+    // FIXME: Perhaps add the below error check?
+    // if (verneedBuf + sizeof(typename ELFT::Verneed) > data.end()) {
+    //   Err(ctx) << this << " has an invalid Verneed";
+    //   break;
+    // }
+    auto *CurVerNeed =
+        reinterpret_cast<const typename ELFT::Verneed *>(VerNeedBuf);
+    const uint8_t *VernAuxBuf = VerNeedBuf + CurVerNeed->vn_aux;
+    for (unsigned j = 0; j != CurVerNeed->vn_cnt; ++j) {
+      auto *CurVernAux =
+          reinterpret_cast<const typename ELFT::Vernaux *>(VernAuxBuf);
+      uint16_t VersionIdentifier =
+          CurVernAux->vna_other & llvm::ELF::VERSYM_VERSION;
+      if (VersionIdentifier > VerNeeds.size())
+        VerNeeds.resize(VersionIdentifier + 1);
+      VerNeeds[VersionIdentifier] = CurVernAux->vna_name;
+      VernAuxBuf += CurVernAux->vna_next;
+    }
+    VerNeedBuf += CurVerNeed->vn_next;
+  }
+  DynObjFile->setVerNeeds(std::move(VerNeeds));
+  return {};
+}
+
+template <class ELFT>
+eld::Expected<void> DynamicELFReader<ELFT>::readVerSymSection() {
+  ELFDynObjectFile *DynObjFile =
+      llvm::cast<ELFDynObjectFile>(&this->m_InputFile);
+  const ELFSection *S = DynObjFile->getVerSymSection();
+  if (!S)
+    return {};
+  ASSERT(S->getType() == llvm::ELF::SHT_GNU_versym,
+         "S must be SHT_GNU_versym section");
+  std::vector<uint16_t> VerSyms;
+  typename ELFReader<ELFT>::Elf_Shdr RawSectHdr =
+      this->m_RawSectHdrs.value()[S->getIndex()];
+  llvm::Expected<llvm::ArrayRef<typename ELFReader<ELFT>::Elf_Versym>>
+      ExpRawVerSym = this->m_LLVMELFFile->template getSectionContentsAsArray<
+          typename ELFReader<ELFT>::Elf_Versym>(RawSectHdr);
+  LLVMEXP_RETURN_DIAGENTRY_IF_ERROR(ExpRawVerSym);
+  llvm::ArrayRef<typename ELFReader<ELFT>::Elf_Versym> RawVerSym =
+      std::move(ExpRawVerSym.get());
+  VerSyms.resize(RawVerSym.size());
+  for (size_t i = 0; i < RawVerSym.size(); ++i)
+    VerSyms[i] = RawVerSym[i].vs_index;
+  DynObjFile->setVerSyms(std::move(VerSyms));
+  return {};
 }
 
 template class DynamicELFReader<llvm::object::ELF32LE>;
