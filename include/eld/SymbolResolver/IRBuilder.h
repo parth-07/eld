@@ -111,7 +111,8 @@ private:
                                 ResolveInfo::SizeType Size,
                                 LDSymbol::ValueType Value,
                                 ResolveInfo::Visibility Visibility,
-                                uint32_t Shndx, bool IsPostLtoPhase);
+                                uint32_t Shndx, bool IsPostLtoPhase,
+                                uint32_t SymIdx);
 
 public:
   void addToCref(InputFile &Input, Resolver::Result PResult);
