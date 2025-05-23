@@ -8,7 +8,9 @@
 
 #include "eld/Input/ELFFileBase.h"
 #include "eld/Input/Input.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include <sys/types.h>
+#include <cassert>
 
 namespace eld {
 
@@ -46,29 +48,72 @@ public:
 
   ELFSection *getVerSymSection() const { return VerSymSection; }
 
-  void setVerDefs(std::vector<uint32_t> VDefs) {
-    VerDefs = VDefs;
-  }
+  void setVerDefs(std::vector<const void *> VDefs) { VerDefs = VDefs; }
 
-  const std::vector<uint32_t> &getVerDefs() const { return VerDefs; }
+  const std::vector<const void *> &getVerDefs() const { return VerDefs; }
 
-  void setVerNeeds(std::vector<uint32_t> VNeeds) {
-    VerNeeds = VNeeds;
-  }
+  void setVerNeeds(std::vector<uint32_t> VNeeds) { VerNeeds = VNeeds; }
 
   const std::vector<uint32_t> &getVerNeeds() const { return VerNeeds; }
 
-  void setVerSyms(std::vector<uint16_t> VSyms) {
-    VerSyms = VSyms;
-  }
+  void setVerSyms(std::vector<uint16_t> VSyms) { VerSyms = VSyms; }
 
   const std::vector<uint16_t> &getVerSyms() const { return VerSyms; }
 
-  void setDynStrTabSection(ELFSection *S) {
-    DynStrTabSection = S;
-  }
+  void setDynStrTabSection(ELFSection *S) { DynStrTabSection = S; }
 
   llvm::StringRef getDynStringTable() const;
+
+  template <class ELFT>
+  llvm::StringRef getSymbolVersionName(uint32_t SymIdx,
+                                       ResolveInfo::Desc SymDesc) const {
+    uint16_t SymVerID = getSymbolVersionID(SymIdx);
+    llvm::StringRef VerName;
+    if (SymVerID == llvm::ELF::VER_NDX_LOCAL ||
+        SymVerID == llvm::ELF::VER_NDX_GLOBAL)
+      return VerName;
+    if (SymDesc == ResolveInfo::Desc::Undefined)
+      VerName = getDynStringTable().data() + VerNeeds[SymVerID];
+    else {
+      auto VerNameOffset =
+          reinterpret_cast<const typename ELFT::Verdef *>(VerDefs[SymVerID])
+              ->getAux()
+              ->vda_name;
+      VerName = getDynStringTable().data() + VerNameOffset;
+    }
+    return VerName;
+  }
+
+  uint16_t getSymbolVersionID(uint32_t SymIdx) const {
+    assert(SymIdx < VerSyms.size() && "Invalid SymIdx");
+    return VerSyms[SymIdx] & ~llvm::ELF::VERSYM_HIDDEN;
+  }
+
+  bool isDefaultVersionedSymbol(uint32_t SymIdx) const {
+    assert(SymIdx < VerSyms.size() && "Invalid SymIdx");
+    return VerSyms[SymIdx] == getSymbolVersionID(SymIdx);
+  }
+
+  uint16_t getOutputVernAuxID(uint16_t InputVerID) {
+    if (InputVerID >= OutputVernAuxIDMap.size())
+      OutputVernAuxIDMap.resize(InputVerID + 1, 0);
+    return OutputVernAuxIDMap[InputVerID];
+  }
+
+  void setOutputVernAuxID(uint16_t InputVerID, uint16_t OutputVerID) {
+    if (InputVerID >= OutputVernAuxIDMap.size())
+      OutputVernAuxIDMap.resize(InputVerID + 1, 0);
+    OutputVernAuxIDMap[InputVerID] = OutputVerID;
+  }
+
+  const std::vector<uint16_t> &getOutputVernAuxIDMap() const {
+    return OutputVernAuxIDMap;
+  }
+
+  const void *getVerDef(uint16_t InputVerID) {
+    assert(InputVerID < VerDefs.size() && "Invalid InputVerID");
+    return VerDefs[InputVerID];
+  }
 
 private:
   std::vector<ELFSection *> Sections;
@@ -76,9 +121,11 @@ private:
   ELFSection *VerNeedSection = nullptr;
   ELFSection *VerSymSection = nullptr;
   ELFSection *DynStrTabSection = nullptr;
-  std::vector<uint32_t> VerDefs;
+  std::vector<const void *> VerDefs;
   std::vector<uint32_t> VerNeeds;
   std::vector<uint16_t> VerSyms;
+
+  std::vector<uint16_t> OutputVernAuxIDMap;
 };
 
 } // namespace eld

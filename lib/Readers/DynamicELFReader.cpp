@@ -229,17 +229,16 @@ eld::Expected<void> DynamicELFReader<ELFT>::readVerDefSection() {
     return {};
   ASSERT(S->getType() == llvm::ELF::SHT_GNU_verdef,
          "S must be SHT_GNU_verdef section");
-  std::vector<uint32_t> Verdefs;
+  std::vector<const void *> Verdefs;
   const uint8_t *Verdef =
       reinterpret_cast<const uint8_t *>(S->getContents().data());
   for (unsigned i = 0, e = S->getInfo(); i < e; ++i) {
-    auto *CurVerdef = reinterpret_cast<const typename ELFT::Verdef *>(Verdef);
-    Verdef += CurVerdef->vd_next;
-    unsigned CurVerdefIndex = CurVerdef->vd_ndx;
-    if (CurVerdefIndex >= Verdefs.size())
-      Verdefs.resize(CurVerdefIndex + 1);
-    auto *CurVerdaux = CurVerdef->getAux();
-    Verdefs[CurVerdefIndex] = CurVerdaux->vda_name;
+    auto *CurVerDef = reinterpret_cast<const typename ELFT::Verdef *>(Verdef);
+    Verdef += CurVerDef->vd_next;
+    unsigned CurVerDefIndex = CurVerDef->vd_ndx;
+    if (CurVerDefIndex >= Verdefs.size())
+      Verdefs.resize(CurVerDefIndex + 1);
+    Verdefs[CurVerDefIndex] = CurVerDef;
   }
   DynObjFile->setVerDefs(std::move(Verdefs));
   return {};

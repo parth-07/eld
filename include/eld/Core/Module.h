@@ -98,6 +98,7 @@ public:
     Trampoline,
     GlobalDataSymbols,
     GNUBuildID,
+    SymbolVersioning,
     MAX
   } InternalInputType;
 

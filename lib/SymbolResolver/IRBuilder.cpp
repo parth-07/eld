@@ -33,8 +33,8 @@
 #include "eld/Target/Relocator.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/Object/ELF.h"
 #include <unordered_map>
-
 using namespace eld;
 
 //===----------------------------------------------------------------------===//
@@ -326,7 +326,9 @@ LDSymbol *IRBuilder::addSymbolFromDynObj(
   LDSymbol *InputSym = makeLDSymbol(nullptr);
   InputSym->setFragmentRef(FragmentRef::null());
   InputSym->setSectionIndex(Shndx);
-
+  InputSym->setSymbolIndex(SymIdx);
+  llvm::errs() << "[IRBuilder::addSymbolFromDynObj] InputSym, SymIdx: "
+               << SymbolName << ", " << SymIdx << "\n";
   SymbolInfo SymInfo(&Input, Size, Binding, Type, Visibility, Desc,
                      /*isBitcode=*/false);
 
@@ -349,37 +351,34 @@ LDSymbol *IRBuilder::addSymbolFromDynObj(
     return nullptr;
 
   const ELFDynObjectFile *DynObjFile = llvm::cast<ELFDynObjectFile>(&Input);
-  const auto &VerDefs = DynObjFile->getVerDefs();
-  const auto &VerNeeds = DynObjFile->getVerNeeds();
-  const auto &VerSyms = DynObjFile->getVerSyms();
-  uint16_t VerID = VerSyms[SymIdx] & ~llvm::ELF::VERSYM_HIDDEN;
-  bool isDefaultSymbol = (VerSyms[SymIdx] == VerID);
-  std::string VerName;
-  llvm::errs() << "[IRBuilder::addSymbolFromDynObj] SymbolName: " << SymbolName
-               << ", VerID: " << VerID << "\n";
-  if (Desc == ResolveInfo::Desc::Undefined) {
-    if (VerSyms[SymIdx] != llvm::ELF::VER_NDX_LOCAL &&
-        VerSyms[SymIdx] != llvm::ELF::VER_NDX_GLOBAL) {
-      VerName = DynObjFile->getDynStringTable().data() + VerNeeds[VerID];
-      // llvm::errs() << "[IRBuilder::addSymbolFromDynObj] SymbolName: "
-      //              << SymbolName << ", VerName: " << VerName
-      //              << ", Offset: " << VerNeeds[VerID] << "\n";
+  bool isDefaultSymbol = DynObjFile->isDefaultVersionedSymbol(SymIdx);
+  auto VerID = DynObjFile->getSymbolVersionID(SymIdx);
+
+  llvm::StringRef VerName =
+      (ThisConfig.targets().is32Bits()
+           ? DynObjFile->getSymbolVersionName<llvm::object::ELF32LE>(SymIdx,
+                                                                     Desc)
+           : DynObjFile->getSymbolVersionName<llvm::object::ELF64LE>(SymIdx,
+                                                                     Desc));
+
+  if (isDefaultSymbol) {
+    NP.insertNonLocalSymbol(InputSymbolResolveInfo, *InputSym, IsPostLtoPhase,
+                            ResolvedResult);
+    if (ResolvedResult.Overriden || !ResolvedResult.Existent) {
+      ResolvedResult.Info->setValue(Value, false);
+      Input.setNeeded();
+      // NP.addSharedLibSymbol(InputSym);
     }
-  } else {
-    if (VerSyms[SymIdx] != llvm::ELF::VER_NDX_GLOBAL) {
-      VerName = DynObjFile->getDynStringTable().data() + VerDefs[VerID];
-      // llvm::errs() << "[IRBuilder::addSymbolFromDynObj] SymbolName: "
-      //              << SymbolName << ", VerName: " << VerName
-      //              << ", Offset: " << VerDefs[VerID] << "\n";
+    if (ResolvedResult.Overriden && ResolvedResult.Existent) {
+      ResolvedResult.Info->setOutSymbol(InputSym);
+      ResolvedResult.Info->setSymbolVersionID(VerID);
     }
   }
 
-  if (isDefaultSymbol)
-    NP.insertNonLocalSymbol(InputSymbolResolveInfo, *InputSym, IsPostLtoPhase,
-                            ResolvedResult);
-
   if (!VerName.empty()) {
-    InputSymbolResolveInfo.setName(Saver.save(VerName));
+    // std::string VersionedName = SymbolName + "@" + VerName.str();
+    std::string VersionedName = SymbolName;
+    InputSymbolResolveInfo.setName(Saver.save(VersionedName));
   }
   // Resolve symbol
   bool S = NP.insertNonLocalSymbol(InputSymbolResolveInfo, *InputSym,
@@ -401,6 +400,7 @@ LDSymbol *IRBuilder::addSymbolFromDynObj(
   }
   if (ResolvedResult.Overriden && ResolvedResult.Existent) {
     ResolvedResult.Info->setOutSymbol(InputSym);
+    ResolvedResult.Info->setSymbolVersionID(VerID);
   }
   // If the symbol is from dynamic library and we are not making a dynamic
   // library, we either need to export the symbol by dynamic list or sometimes
