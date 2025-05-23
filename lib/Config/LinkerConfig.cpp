@@ -262,3 +262,7 @@ bool LinkerConfig::isSymDefStyleValid() const {
 std::string LinkerConfig::getSymDefString() const {
   return GenOptions.symDefFileStyle().upper();
 }
+
+bool LinkerConfig::shouldBuildDynamicArtifact() const {
+  return isCodeDynamic() || options().forceDynamic();
+}

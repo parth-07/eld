@@ -18,6 +18,7 @@
 #include "eld/Input/Input.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/DataTypes.h"
+#include <cstdint>
 #include <string>
 
 namespace eld {
@@ -252,6 +253,14 @@ public:
 
   std::string getResolvedPath() const;
 
+  void setSymbolVersionID(uint16_t VerID) {
+    SymbolVersionID = VerID;
+  }
+
+  uint16_t getSymbolVersionID() const {
+    return SymbolVersionID;
+  }
+
 private:
   static const uint32_t GlobalOffset = 0;
   static const uint32_t GlobalMask = 1;
@@ -329,6 +338,7 @@ private:
   llvm::StringRef SymbolName;
   ResolveInfo *SymbolAlias;
   InputFile *SymbolResolvedOrigin;
+  uint16_t SymbolVersionID = 1;
 };
 
 } // namespace eld

@@ -23,6 +23,8 @@
 #include "eld/Fragment/BuildIDFragment.h"
 #include "eld/Fragment/FillFragment.h"
 #include "eld/Fragment/GNUHashFragment.h"
+#include "eld/Fragment/GNUVerNeedFragment.h"
+#include "eld/Fragment/GNUVerSymFragment.h"
 #include "eld/Fragment/RegionFragmentEx.h"
 #include "eld/Fragment/StringFragment.h"
 #include "eld/Fragment/SysVHashFragment.h"
@@ -75,6 +77,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/Object/ELFTypes.h"
 #include "llvm/Support/BinaryStreamWriter.h"
 #include "llvm/Support/FileOutputBuffer.h"
 #include "llvm/Support/Memory.h"
@@ -822,6 +825,25 @@ void GNULDBackend::sizeDynNamePools() {
       m_pGNUHash->addFragmentAndUpdateSize(F);
     }
   }
+
+  assignOutputVersionIDs();
+
+  if (GNUVerSymSection) {
+    Fragment *F = make<GNUVerSymFragment>(GNUVerSymSection, DynamicSymbols);
+    GNUVerSymSection->addFragmentAndUpdateSize(F);
+  }
+
+  if (GNUVerNeedSection) {
+    GNUVerNeedFragment *F = make<GNUVerNeedFragment>(GNUVerNeedSection);
+    bool is32Bits = config().targets().is32Bits();
+    if (is32Bits)
+      F->computeVersionNeeds<llvm::object::ELF32LE>(
+          m_Module.getDynLibraryList(), getOutputFormat());
+    else
+      F->computeVersionNeeds<llvm::object::ELF64LE>(
+          m_Module.getDynLibraryList(), getOutputFormat());
+    GNUVerNeedSection->addFragmentAndUpdateSize(F);
+  }
 }
 
 void GNULDBackend::createEhFrameFillerAndHdrSection() {
@@ -877,10 +899,10 @@ void GNULDBackend::sizeDynamic() {
     if (llvm::dyn_cast<ELFFileBase>(lib)->isELFNeeded()) {
       const ELFDynObjectFile *dynObjFile = llvm::cast<ELFDynObjectFile>(lib);
       if (addedLibs.count(dynObjFile->getInput()->getMemArea()))
-          continue;
+        continue;
       addedLibs.insert(dynObjFile->getInput()->getMemArea());
-      std::size_t SONameOffset = FileFormat->addStringToDynStrTab(
-          dynObjFile->getSOName());
+      std::size_t SONameOffset =
+          FileFormat->addStringToDynStrTab(dynObjFile->getSOName());
       auto DTEntry = dynamic()->reserveNeedEntry();
       DTEntry->setValue(llvm::ELF::DT_NEEDED, SONameOffset);
     }
@@ -1116,9 +1138,11 @@ GNULDBackend::emitRegNamePools(llvm::FileOutputBuffer &pOutput) {
 
   // emit the first ELF symbol
   if (config().targets().is32Bits())
-    emitSymbol32(symtab32[0], LDSymbol::null(), strtab, 0, 0, /*IsDynSymTab=*/false);
+    emitSymbol32(symtab32[0], LDSymbol::null(), strtab, 0, 0,
+                 /*IsDynSymTab=*/false);
   else
-    emitSymbol64(symtab64[0], LDSymbol::null(), strtab, 0, 0, /*IsDynSymTab=*/false);
+    emitSymbol64(symtab64[0], LDSymbol::null(), strtab, 0, 0,
+                 /*IsDynSymTab=*/false);
 
   m_pSymIndexMap[LDSymbol::null()] = 0;
 
@@ -1135,11 +1159,11 @@ GNULDBackend::emitRegNamePools(llvm::FileOutputBuffer &pOutput) {
       continue;
     }
     if (config().targets().is32Bits())
-      emitSymbol32(symtab32[symIdx], S->outSymbol(), strtab, strtabsize,
-                   symIdx, /*IsDynSymTab=*/false);
+      emitSymbol32(symtab32[symIdx], S->outSymbol(), strtab, strtabsize, symIdx,
+                   /*IsDynSymTab=*/false);
     else
-      emitSymbol64(symtab64[symIdx], S->outSymbol(), strtab, strtabsize,
-                   symIdx, /*IsDynSymTab=*/false);
+      emitSymbol64(symtab64[symIdx], S->outSymbol(), strtab, strtabsize, symIdx,
+                   /*IsDynSymTab=*/false);
     if ((S->isGlobal() || S->isWeak()) && !firstNonLocal)
       firstNonLocal = symIdx;
     strtabsize += std::string(S->name()).size() + 1;
@@ -5158,4 +5182,44 @@ bool GNULDBackend::allocateHeaders() {
     return true;
   }
   return false;
+}
+
+void GNULDBackend::initSymbolVersioningSections() {
+  GNUVerSymSection = m_Module.createInternalSection(
+      Module::InternalInputType::SymbolVersioning,
+      LDFileFormat::Kind::Version, ".gnu.version",
+      llvm::ELF::SHT_GNU_versym, llvm::ELF::SHF_ALLOC,
+      /*Align=*/sizeof(uint16_t),
+      /*EntrySize=*/2);
+  GNUVerNeedSection = m_Module.createInternalSection(
+      Module::InternalInputType::SymbolVersioning,
+      LDFileFormat::Kind::Version, ".gnu.version_r",
+      llvm::ELF::SHT_GNU_verneed, llvm::ELF::SHF_ALLOC,
+      /*Align=*/sizeof(uint32_t));
+}
+
+void GNULDBackend::assignOutputVersionIDs() const {
+  // 0 and 1 are reserved!
+  uint32_t VerID = 2;
+  // FIXME: It does not handle features like export everything.
+  // Exporting symbols that are defined in non-shared files.
+  // Skip the 0-th Null symbol
+  for (std::size_t i = 1, e = DynamicSymbols.size(); i < e; ++i) {
+    ResolveInfo *R = DynamicSymbols[i];
+    ELFDynObjectFile *DynObjFile =
+        llvm::cast<ELFDynObjectFile>(R->resolvedOrigin());
+    auto InputVerID = R->getSymbolVersionID();
+    if (R->isUndef())
+      continue;
+    if (InputVerID == 0 || InputVerID == 1) {
+      R->setSymbolVersionID(InputVerID);
+      continue;
+    }
+    auto VernAuxID = DynObjFile->getOutputVernAuxID(InputVerID);
+    if (VernAuxID == 0) {
+      VernAuxID = VerID++;
+      DynObjFile->setOutputVernAuxID(InputVerID, VernAuxID);
+    }
+    R->setSymbolVersionID(VernAuxID);
+  }
 }
