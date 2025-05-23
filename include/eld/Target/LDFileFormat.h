@@ -48,6 +48,7 @@ public:
     Regular,
     Relocation,
     StackNote,
+    SymbolVersioning,
     Target,
     Timing,
     Version,
