@@ -168,6 +168,9 @@ bool ObjectLinker::initStdSections() {
           *getTargetBackend().getDynamicSectionHeadersInputFile());
   }
 
+  if (ThisConfig.shouldBuildDynamicArtifact())
+    ThisBackend.initSymbolVersioningSections();
+
   // initialize target-dependent sections
   getTargetBackend().initTargetSections(Builder);
 
@@ -716,6 +719,7 @@ bool ObjectLinker::mergeInputSections(ObjectBuilder &Builder,
     case LDFileFormat::Null:
     case LDFileFormat::NamePool:
     case LDFileFormat::Discard:
+    case LDFileFormat::Version:
       // skip
       continue;
     case LDFileFormat::Relocation:

@@ -14,6 +14,7 @@
 #define ELD_TARGET_GNULDBACKEND_H
 #include "eld/GarbageCollection/GarbageCollection.h"
 #include "eld/LayoutMap/LayoutInfo.h"
+#include "eld/Input/ELFDynObjectFile.h"
 #include "eld/Object/ObjectBuilder.h"
 #include "eld/Readers/CommonELFSection.h"
 #include "eld/Readers/ELFExecObjParser.h"
@@ -824,6 +825,8 @@ public:
 
   const ResolveInfo *findAbsolutePLT(ResolveInfo *I) const;
 
+  void initSymbolVersioningSections();
+
 protected:
   virtual int numReservedSegments() const { return m_NumReservedSegments; }
 
@@ -998,6 +1001,8 @@ private:
   // Setup TLS alignment and check for any layout issues
   bool setupTLS();
 
+  void assignOutputVersionIDs() const;
+
 protected:
   Module &m_Module;
 
@@ -1128,6 +1133,9 @@ protected:
   bool m_NeedEhdr = false;
 
   bool m_NeedPhdr = false;
+
+  ELFSection *GNUVerSymSection = nullptr;
+  ELFSection *GNUVerNeedSection = nullptr;
 };
 
 } // namespace eld
