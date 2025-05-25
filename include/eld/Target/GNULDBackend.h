@@ -50,6 +50,7 @@ class ELFFileFormat;
 class ELFObjectFile;
 class ELFObjectFileFormat;
 class ELFSegmentFactory;
+class GNUVerNeedFragment;
 class TargetInfo;
 class Layout;
 class LinkerConfig;
@@ -827,6 +828,12 @@ public:
 
   void initSymbolVersioningSections();
 
+  ELFSection *getGNUVerSymSection() const { return GNUVerSymSection; }
+
+  ELFSection *getGNUVerNeedSection() const { return GNUVerNeedSection; }
+
+  GNUVerNeedFragment *getGNUVerNeedFragment() const { return GNUVerNeedFrag; }
+
 protected:
   virtual int numReservedSegments() const { return m_NumReservedSegments; }
 
@@ -1136,6 +1143,7 @@ protected:
 
   ELFSection *GNUVerSymSection = nullptr;
   ELFSection *GNUVerNeedSection = nullptr;
+  GNUVerNeedFragment *GNUVerNeedFrag = nullptr;
 };
 
 } // namespace eld
