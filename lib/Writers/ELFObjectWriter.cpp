@@ -16,6 +16,7 @@
 #include "eld/Core/Module.h"
 #include "eld/Diagnostics/DiagnosticEngine.h"
 #include "eld/Fragment/FillFragment.h"
+#include "eld/Fragment/GNUVerNeedFragment.h"
 #include "eld/Fragment/RegionFragment.h"
 #include "eld/Fragment/StringFragment.h"
 #include "eld/Fragment/Stub.h"
@@ -76,6 +77,7 @@ eld::Expected<void> ELFObjectWriter::writeSection(
   case LDFileFormat::MergeStr:
   case LDFileFormat::GCCExceptTable:
   case LDFileFormat::EhFrame:
+  case LDFileFormat::SymbolVersion:
   case LDFileFormat::Timing: {
     if (Section->getOutputELFSection()->isNoBits())
       return {};
@@ -127,6 +129,7 @@ eld::Expected<void> ELFObjectWriter::writeRegion(Module &CurModule,
   case LDFileFormat::Note:
   case LDFileFormat::MergeStr:
   case LDFileFormat::EhFrame:
+  case LDFileFormat::SymbolVersion:
   case LDFileFormat::Timing: {
     eld::Expected<void> ExpEmit = emitSection(Section, Region);
     ELDEXP_RETURN_DIAGENTRY_IF_ERROR(ExpEmit);
@@ -704,6 +707,10 @@ uint64_t ELFObjectWriter::getSectLink(const ELFSection *S) const {
   if (llvm::ELF::SHT_HASH == S->getType() ||
       llvm::ELF::SHT_GNU_HASH == S->getType())
     Link = target().getOutputFormat()->getDynSymTab();
+  if (llvm::ELF::SHT_GNU_versym == S->getType())
+    Link = target().getOutputFormat()->getDynSymTab();
+  if (llvm::ELF::SHT_GNU_verneed == S->getType())
+    Link = target().getOutputFormat()->getDynStrTab();
   if (Config.isLinkPartial() && llvm::ELF::SHF_LINK_ORDER & S->getFlags())
     return S->getLink()->getOutputSection()->getSection()->getIndex();
   if (S->isRelocationSection()) {
@@ -728,7 +735,9 @@ uint64_t ELFObjectWriter::getSectInfo(ELFSection *CurSection) const {
   if (llvm::ELF::SHT_SYMTAB == CurSection->getType() ||
       llvm::ELF::SHT_DYNSYM == CurSection->getType())
     return CurSection->getInfo();
-
+  if (llvm::ELF::SHT_GNU_verneed == CurSection->getType()) {
+    return Backend.getGNUVerNeedFragment()->needCount();
+  }
   if (CurSection->isRelocationSection()) {
     auto *InfoLink = llvm::dyn_cast_or_null<ELFSection>(CurSection->getLink());
     if (nullptr != InfoLink) {

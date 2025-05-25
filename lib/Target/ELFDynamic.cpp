@@ -15,10 +15,12 @@
 #include "eld/Config/GeneralOptions.h"
 #include "eld/Config/LinkerConfig.h"
 #include "eld/Core/Module.h"
+#include "eld/Fragment/GNUVerNeedFragment.h"
 #include "eld/Support/MsgHandling.h"
 #include "eld/SymbolResolver/LDSymbol.h"
 #include "eld/Target/ELFFileFormat.h"
 #include "eld/Target/GNULDBackend.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Support/ErrorHandling.h"
 
 using namespace eld;
@@ -233,6 +235,14 @@ void ELFDynamic::reserveEntries(ELFFileFormat &pFormat, Module &pModule) {
   if (m_Backend.hasTextRel())
     reserveOne(llvm::ELF::DT_TEXTREL); // DT_TEXTREL
 
+  if (m_Backend.getGNUVerSymSection())
+    reserveOne(llvm::ELF::DT_VERSYM);
+
+  if (m_Backend.getGNUVerNeedSection()) {
+    reserveOne(llvm::ELF::DT_VERNEED);
+    reserveOne(llvm::ELF::DT_VERNEEDNUM);
+  }
+
   reserveOne(llvm::ELF::DT_DEBUG); // for Debugging
   reserveOne(llvm::ELF::DT_NULL);  // for DT_NULL
 }
@@ -395,6 +405,17 @@ void ELFDynamic::applyEntries(const ELFFileFormat &pFormat,
     dt_flags_1 |= llvm::ELF::DF_1_GLOBAL;
   if (dt_flags_1 != 0x0)
     applyOne(llvm::ELF::DT_FLAGS_1, dt_flags_1);
+
+  if (ELFSection *S = m_Backend.getGNUVerSymSection()) {
+    applyOne(llvm::ELF::DT_VERSYM, S->addr());
+  }
+
+  if (ELFSection *S = m_Backend.getGNUVerNeedSection()) {
+    applyOne(llvm::ELF::DT_VERNEED, S->addr());
+    GNUVerNeedFragment *F = m_Backend.getGNUVerNeedFragment();
+    ASSERT(F, "Must not be null!");
+    applyOne(llvm::ELF::DT_VERNEEDNUM, F->needCount());
+  }
 
   if (!m_Config.options().isCompactDyn())
     applyOne(llvm::ELF::DT_DEBUG, 0x0); // for DT_DEBUG

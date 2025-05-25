@@ -1,5 +1,6 @@
 #include "eld/Fragment/GNUVerNeedFragment.h"
 #include "eld/Core/Module.h"
+#include "eld/Diagnostics/DiagnosticEngine.h"
 #include "eld/Input/ELFDynObjectFile.h"
 #include "eld/Input/InputFile.h"
 #include "eld/Target/ELFFileFormat.h"
@@ -14,9 +15,10 @@ GNUVerNeedFragment::GNUVerNeedFragment(ELFSection *S)
 template <class ELFT>
 eld::Expected<void> GNUVerNeedFragment::computeVersionNeeds(
     const std::vector<InputFile *> &DynamicObjectFiles,
-    ELFFileFormat *FileFormat) {
-  VerNeedEntrySize = sizeof(typename ELFT::Verdef);
-  VernAuxEntrySize = sizeof(typename ELFT::Verdaux);
+    ELFFileFormat *FileFormat, DiagnosticEngine &DE) {
+  VerNeedEntrySize = sizeof(typename ELFT::Verneed);
+  VernAuxEntrySize = sizeof(typename ELFT::Vernaux);
+  bool traceSV = DE.getPrinter()->traceSymbolVersioning();
   for (auto *IF : DynamicObjectFiles) {
     auto *DynObjFile = llvm::cast<ELFDynObjectFile>(IF);
     const auto &VernAuxIDMap = DynObjFile->getOutputVernAuxIDMap();
@@ -34,6 +36,9 @@ eld::Expected<void> GNUVerNeedFragment::computeVersionNeeds(
           static_cast<uint32_t>(
               FileFormat->addStringToDynStrTab(VerName.str())),
           VernAuxIDMap[i], verdef->vd_hash};
+      if (traceSV)
+        DE.raise(Diag::trace_adding_verneed_entry)
+            << VernAuxIDMap[i] << VerName.str();
       VNI.Vernauxs.push_back(AuxInfo);
     }
     if (!VNI.Vernauxs.empty())
@@ -53,7 +58,6 @@ size_t GNUVerNeedFragment::size() const {
 
 eld::Expected<void> GNUVerNeedFragment::emit(MemoryRegion &Mr, Module &M) {
   uint8_t *Buf = Mr.begin() + getOffset(M.getConfig().getDiagEngine());
-  (void)Buf;
   bool Is32Bits = M.getConfig().targets().is32Bits();
   if (Is32Bits) {
     return emitImpl<llvm::object::ELF32LE>(Buf, M);
@@ -77,6 +81,8 @@ eld::Expected<void> GNUVerNeedFragment::emitImpl(uint8_t *Buf, Module &M) {
     VerNeedBuf->vn_next = sizeof(typename ELFT::Verneed);
     ++VerNeedBuf;
     for (const auto &VA : VN.Vernauxs) {
+      llvm::errs() << "[GNUVerNeedFragment::emitImpl] Writing " << VA.VersionID
+                   << " -> " << VA.VersionNameOffset << "\n";
       VernAuxBuf->vna_hash = VA.VersionNameHash;
       VernAuxBuf->vna_flags = 0;
       VernAuxBuf->vna_other = VA.VersionID;
@@ -84,15 +90,17 @@ eld::Expected<void> GNUVerNeedFragment::emitImpl(uint8_t *Buf, Module &M) {
       VernAuxBuf->vna_next = sizeof(typename ELFT::Vernaux);
       ++VernAuxBuf;
     }
+    VernAuxBuf[-1].vna_next = 0;
   }
+  VerNeedBuf[-1].vn_next = 0;
   return {};
 }
 
 template eld::Expected<void>
 GNUVerNeedFragment::computeVersionNeeds<llvm::object::ELF32LE>(
     const std::vector<InputFile *> &DynamicObjectFiles,
-    ELFFileFormat *FileFormat);
+    ELFFileFormat *FileFormat, DiagnosticEngine &DE);
 template eld::Expected<void>
 GNUVerNeedFragment::computeVersionNeeds<llvm::object::ELF64LE>(
     const std::vector<InputFile *> &DynamicObjectFiles,
-    ELFFileFormat *FileFormat);
+    ELFFileFormat *FileFormat, DiagnosticEngine &DE);

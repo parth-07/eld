@@ -19,6 +19,7 @@
 #include "llvm/ADT/StringRef.h"
 
 namespace eld {
+class DiagnosticEngine;
 class ELFSection;
 class InputFile;
 class ELFFileFormat;
@@ -38,7 +39,7 @@ public:
   template <class ELFT>
   eld::Expected<void>
   computeVersionNeeds(const std::vector<InputFile *> &DynamicObjectFiles,
-                      ELFFileFormat *FileFormat);
+                      ELFFileFormat *FileFormat, DiagnosticEngine &DE);
 
   eld::Expected<void> emit(MemoryRegion &Mr, Module &M) override;
 
@@ -46,6 +47,8 @@ public:
 
   template <class ELFT>
   eld::Expected<void> emitImpl(uint8_t *Buf, Module &M);
+
+  size_t needCount() { return VersionNeeds.size(); }
 
 public:
   struct VernAuxInfo {
