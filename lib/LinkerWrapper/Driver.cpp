@@ -183,6 +183,10 @@ Driver::getFlavorAndTripleFromLinkCommand(llvm::ArrayRef<const char *> Args) {
         F = Flavor::AArch64;
     }
 #endif
+#if defined(ELD_ENABLE_TARGET_X86_64)
+    if (Emulation == "elf_x86_64")
+      F = Flavor::x86_64;
+#endif
     if (F == Flavor::Invalid)
       return std::make_unique<eld::DiagnosticEntry>(
           eld::Diag::fatal_unsupported_emulation,

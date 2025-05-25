@@ -231,7 +231,7 @@ void GNULDBackend::insertTimingFragmentStub() {
   LayoutInfo *layoutInfo = m_Module.getLayoutInfo();
   if (layoutInfo)
     layoutInfo->recordFragment(F->getOwningSection()->getInputFile(),
-                      F->getOwningSection(), F);
+                               F->getOwningSection(), F);
   m_pTimingFragment = F;
 }
 
@@ -321,7 +321,7 @@ eld::Expected<void> GNULDBackend::initStdSections() {
 
   if (layoutInfo)
     layoutInfo->recordFragment(F->getOwningSection()->getInputFile(),
-                      F->getOwningSection(), F);
+                               F->getOwningSection(), F);
 
   return eld::Expected<void>();
 }
@@ -828,21 +828,32 @@ void GNULDBackend::sizeDynNamePools() {
 
   assignOutputVersionIDs();
 
+  const DiagnosticPrinter *DP = m_Module.getPrinter();
+
   if (GNUVerSymSection) {
+    if (DP->traceSymbolVersioning())
+      config().raise(Diag::trace_creating_symbol_versioning_fragment) <<
+          GNUVerSymSection->name();
     Fragment *F = make<GNUVerSymFragment>(GNUVerSymSection, DynamicSymbols);
     GNUVerSymSection->addFragmentAndUpdateSize(F);
   }
 
   if (GNUVerNeedSection) {
+    if (DP->traceSymbolVersioning())
+      config().raise(Diag::trace_creating_symbol_versioning_fragment) <<
+          GNUVerNeedSection->name();
+    DiagnosticEngine *DE = config().getDiagEngine();
     GNUVerNeedFragment *F = make<GNUVerNeedFragment>(GNUVerNeedSection);
     bool is32Bits = config().targets().is32Bits();
     if (is32Bits)
       F->computeVersionNeeds<llvm::object::ELF32LE>(
-          m_Module.getDynLibraryList(), getOutputFormat());
+          m_Module.getDynLibraryList(), getOutputFormat(), *DE);
     else
       F->computeVersionNeeds<llvm::object::ELF64LE>(
-          m_Module.getDynLibraryList(), getOutputFormat());
+          m_Module.getDynLibraryList(), getOutputFormat(), *DE);
     GNUVerNeedSection->addFragmentAndUpdateSize(F);
+    GNUVerNeedFrag = F;
+    GNUVerNeedSection->setInfo(F->needCount());
   }
 }
 
@@ -2357,9 +2368,9 @@ GNULDBackend::setupSegmentOffset(ELFSegment *Seg, ELFSection *P,
           }
           NoBitsSections.clear();
         } // next
-      } // NoBits/TLS check
-    } // Iterate over all sections
-  } // Check and allow BSS conversion
+      }   // NoBits/TLS check
+    }     // Iterate over all sections
+  }       // Check and allow BSS conversion
 
   iterB = Seg->begin(), iterE = Seg->end();
   for (; iterB != iterE; ++iterB) {
@@ -2681,7 +2692,7 @@ void GNULDBackend::checkCrossReferencesHelper(InputFile *input) {
       // scan relocation
       getRelocator()->checkCrossReferences(*relocation, *input, *target_sect);
     } // for all relocations
-  } // for all relocation section
+  }   // for all relocation section
 }
 
 bool GNULDBackend::checkCrossReferences() {
@@ -2767,6 +2778,7 @@ bool GNULDBackend::placeOutputSections() {
       case LDFileFormat::EhFrameHdr:
       case LDFileFormat::MergeStr:
       case LDFileFormat::NamePool:
+      case LDFileFormat::SymbolVersion:
         // Place the section in the proper place as per the section permissions.
         if ((elem->size() || string::isValidCIdentifier(elem->name())) ||
             ((elem->hasSectionData() || elem->isWanted()) &&
@@ -3293,8 +3305,8 @@ void GNULDBackend::preLayout() {
               << output_sect->getType() << output_sect->name();
         }
       } // end of for each relocation section
-    } // end of for each input
-  } // end of if
+    }   // end of for each input
+  }     // end of if
 }
 
 /// postLayout - Backend can do any needed modification after layout
@@ -4186,7 +4198,7 @@ LDSymbol &GNULDBackend::defineSymbolforCopyReloc(eld::IRBuilder &pBuilder,
   copyRelocSect->addFragmentAndUpdateSize(frag);
   if (layoutInfo)
     layoutInfo->recordFragment(copyRelocSect->getInputFile(), copyRelocSect,
-                                  frag);
+                               frag);
 
   // change symbol binding to Global if it's a weak symbol
   ResolveInfo::Binding binding = (ResolveInfo::Binding)pSym->binding();
@@ -4709,7 +4721,7 @@ void GNULDBackend::makeVersionString() {
   LayoutInfo *layoutInfo = m_Module.getLayoutInfo();
   if (layoutInfo)
     layoutInfo->recordFragment(F->getOwningSection()->getInputFile(),
-                      F->getOwningSection(), F);
+                               F->getOwningSection(), F);
   // Add LLVM revision information as well if available.
   // This check is required because eld do not necessarily have access
   // to LLVM revision information.
@@ -4721,8 +4733,9 @@ void GNULDBackend::makeVersionString() {
         make<StringFragment>(LLVMRevisionInfo, m_pComment);
     m_pComment->addFragmentAndUpdateSize(LLVMRevisionF);
     if (layoutInfo)
-      layoutInfo->recordFragment(LLVMRevisionF->getOwningSection()->getInputFile(),
-                        LLVMRevisionF->getOwningSection(), LLVMRevisionF);
+      layoutInfo->recordFragment(
+          LLVMRevisionF->getOwningSection()->getInputFile(),
+          LLVMRevisionF->getOwningSection(), LLVMRevisionF);
   }
   if ((LinkerConfig::Object != config().codeGenType()) &&
       (LinkerConfig::DynObj != config().codeGenType()) &&
@@ -4741,8 +4754,9 @@ void GNULDBackend::makeVersionString() {
   Fragment *CmdLineFragment = make<StringFragment>(CommandLine, m_pComment);
   m_pComment->addFragmentAndUpdateSize(CmdLineFragment);
   if (layoutInfo)
-    layoutInfo->recordFragment(CmdLineFragment->getOwningSection()->getInputFile(),
-                      CmdLineFragment->getOwningSection(), CmdLineFragment);
+    layoutInfo->recordFragment(
+        CmdLineFragment->getOwningSection()->getInputFile(),
+        CmdLineFragment->getOwningSection(), CmdLineFragment);
 }
 
 bool GNULDBackend::addPhdrsIfNeeded(void) {
@@ -5185,17 +5199,26 @@ bool GNULDBackend::allocateHeaders() {
 }
 
 void GNULDBackend::initSymbolVersioningSections() {
+  const DiagnosticPrinter *DP = config().getPrinter();
+  if (DP->traceSymbolVersioning())
+    config().raise(Diag::trace_creating_symbol_versioning_section)
+        << ".gnu.version";
   GNUVerSymSection = m_Module.createInternalSection(
       Module::InternalInputType::SymbolVersioning,
-      LDFileFormat::Kind::Version, ".gnu.version",
+      LDFileFormat::Kind::SymbolVersion, ".gnu.version",
       llvm::ELF::SHT_GNU_versym, llvm::ELF::SHF_ALLOC,
       /*Align=*/sizeof(uint16_t),
       /*EntrySize=*/2);
+  
+  if (DP->traceSymbolVersioning())
+    config().raise(Diag::trace_creating_symbol_versioning_section)
+        << ".gnu.version_r";
   GNUVerNeedSection = m_Module.createInternalSection(
       Module::InternalInputType::SymbolVersioning,
-      LDFileFormat::Kind::Version, ".gnu.version_r",
+      LDFileFormat::Kind::SymbolVersion, ".gnu.version_r",
       llvm::ELF::SHT_GNU_verneed, llvm::ELF::SHF_ALLOC,
       /*Align=*/sizeof(uint32_t));
+  GNUVerNeedSection->setLink(getOutputFormat()->getDynStrTab());
 }
 
 void GNULDBackend::assignOutputVersionIDs() const {
