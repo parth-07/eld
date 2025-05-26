@@ -115,6 +115,10 @@ public:
     return VerDefs[InputVerID];
   }
 
+  bool hasSymbolVersioningInfo() const {
+    return VerSymSection != nullptr;
+  }
+
 private:
   std::vector<ELFSection *> Sections;
   ELFSection *VerDefSection = nullptr;

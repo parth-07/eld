@@ -293,8 +293,13 @@ LDSymbol *IRBuilder::addSymbolFromObject(
     // For shared library symbols, out symbol in ResolveInfo is only set if the
     // symbol is referenced by a relocatable object file.
     LDSymbol *SharedLibSym = NP.getSharedLibSymbol(ResolvedResult.Info);
-    if (SharedLibSym)
+    if (SharedLibSym) {
       ResolvedResult.Info->setOutSymbol(SharedLibSym);
+      if (ThisConfig.codeGenType() != LinkerConfig::DynObj &&
+          ((SharedLibSym && SharedLibSym->hasFragRef()) ||
+           SharedLibSym->resolveInfo()->isCommon()))
+        SharedLibSym->resolveInfo()->setExportToDyn();
+    }
   }
 
   if (ThisModule.getPrinter()->traceSymbols())
@@ -344,42 +349,34 @@ LDSymbol *IRBuilder::addSymbolFromDynObj(
 
   auto &PM = ThisModule.getPluginManager();
   DiagnosticPrinter *DP = ThisConfig.getPrinter();
+
+  const ELFDynObjectFile *DynObjFile = llvm::cast<ELFDynObjectFile>(&Input);
+  // Default symbol version
+  uint16_t VerID = llvm::ELF::VER_NDX_GLOBAL;
+  bool IsDefaultVersionedSymbol = false;
+  if (DynObjFile->hasSymbolVersioningInfo()) {
+    llvm::StringRef VerName =
+        (ThisConfig.targets().is32Bits()
+             ? DynObjFile->getSymbolVersionName<llvm::object::ELF32LE>(SymIdx,
+                                                                       Desc)
+             : DynObjFile->getSymbolVersionName<llvm::object::ELF64LE>(SymIdx,
+                                                                       Desc));
+
+    if (!VerName.empty()) {
+      std::string VersionedName = SymbolName + "@" + VerName.str();
+      InputSymbolResolveInfo.setName(Saver.save(VersionedName));
+    }
+
+    VerID = DynObjFile->getSymbolVersionID(SymIdx);
+    IsDefaultVersionedSymbol = DynObjFile->isDefaultVersionedSymbol(SymIdx);
+  }
+
   auto OldErrorCount = DP->getNumErrors() + DP->getNumFatalErrors();
   PM.callVisitSymbolHook(InputSym, InputSymbolResolveInfo.getName(), SymInfo);
   auto NewErrorCount = DP->getNumErrors() + DP->getNumFatalErrors();
   if (NewErrorCount != OldErrorCount)
     return nullptr;
 
-  const ELFDynObjectFile *DynObjFile = llvm::cast<ELFDynObjectFile>(&Input);
-  bool isDefaultSymbol = DynObjFile->isDefaultVersionedSymbol(SymIdx);
-  auto VerID = DynObjFile->getSymbolVersionID(SymIdx);
-
-  llvm::StringRef VerName =
-      (ThisConfig.targets().is32Bits()
-           ? DynObjFile->getSymbolVersionName<llvm::object::ELF32LE>(SymIdx,
-                                                                     Desc)
-           : DynObjFile->getSymbolVersionName<llvm::object::ELF64LE>(SymIdx,
-                                                                     Desc));
-
-  if (isDefaultSymbol) {
-    NP.insertNonLocalSymbol(InputSymbolResolveInfo, *InputSym, IsPostLtoPhase,
-                            ResolvedResult);
-    if (ResolvedResult.Overriden || !ResolvedResult.Existent) {
-      ResolvedResult.Info->setValue(Value, false);
-      Input.setNeeded();
-      // NP.addSharedLibSymbol(InputSym);
-    }
-    if (ResolvedResult.Overriden && ResolvedResult.Existent) {
-      ResolvedResult.Info->setOutSymbol(InputSym);
-      ResolvedResult.Info->setSymbolVersionID(VerID);
-    }
-  }
-
-  if (!VerName.empty()) {
-    // std::string VersionedName = SymbolName + "@" + VerName.str();
-    std::string VersionedName = SymbolName;
-    InputSymbolResolveInfo.setName(Saver.save(VersionedName));
-  }
   // Resolve symbol
   bool S = NP.insertNonLocalSymbol(InputSymbolResolveInfo, *InputSym,
                                    IsPostLtoPhase, ResolvedResult);
@@ -396,11 +393,28 @@ LDSymbol *IRBuilder::addSymbolFromDynObj(
   if (ResolvedResult.Overriden || !ResolvedResult.Existent) {
     ResolvedResult.Info->setValue(Value, false);
     Input.setNeeded();
+    // FIXME: The version id should be *reset* if shared library symbol
+    // is overridden by an non-shared library symbol.
+    ResolvedResult.Info->setSymbolVersionID(VerID);
     NP.addSharedLibSymbol(InputSym);
   }
   if (ResolvedResult.Overriden && ResolvedResult.Existent) {
     ResolvedResult.Info->setOutSymbol(InputSym);
-    ResolvedResult.Info->setSymbolVersionID(VerID);
+  }
+  if (IsDefaultVersionedSymbol) {
+    InputSymbolResolveInfo.setName(Saver.save(SymbolName));
+    ResolvedResult = Resolver::Result{};
+    bool S = NP.insertNonLocalSymbol(InputSymbolResolveInfo, *InputSym,
+                                     IsPostLtoPhase, ResolvedResult);
+    if (!S)
+      return nullptr;
+    if (ResolvedResult.Overriden || !ResolvedResult.Existent) {
+      ResolvedResult.Info->setValue(Value, false);
+      NP.addSharedLibSymbol(InputSym, ResolvedResult.Info);
+    }
+    if (ResolvedResult.Overriden && ResolvedResult.Existent) {
+      ResolvedResult.Info->setOutSymbol(InputSym);
+    }
   }
   // If the symbol is from dynamic library and we are not making a dynamic
   // library, we either need to export the symbol by dynamic list or sometimes

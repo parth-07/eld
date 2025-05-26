@@ -1539,11 +1539,23 @@ bool ObjectLinker::addSymbolsToOutput() {
   // We should not be adding any symbol from dynamic shared libraries into
   // getGlobals.
   // Traverse all the resolveInfo and add the output symbol to output
+  std::unordered_set<LDSymbol *> AlreadyInsertedSymbols;
   for (auto &G : ThisModule->getNamePool().getGlobals()) {
     ResolveInfo *R = G.getValue();
+    LDSymbol *Sym = R->outSymbol();
     accountSymForTotalSymStats(*R);
-    if (addSymbolToOutput(*R))
+    if (addSymbolToOutput(*R)) {
+      if (Sym) {
+        if (AlreadyInsertedSymbols.count(Sym))
+          continue;
+        ResolveInfo *SymRI = Sym->resolveInfo();
+        if (R != SymRI) {
+          SymRI->setOutSymbol(Sym);
+        }
+        AlreadyInsertedSymbols.insert(Sym);
+      }
       ThisModule->addSymbol(R);
+    }
     else
       accountSymForDiscardedSymStats(*R);
   }
