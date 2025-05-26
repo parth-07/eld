@@ -875,7 +875,7 @@ void GNULDBackend::sizeDynamic() {
   size_t symIdx = 0;
   for (auto &DynSym : DynamicSymbols) {
     m_pDynSymIndexMap[DynSym->outSymbol()] = symIdx;
-    FileFormat->addStringToDynStrTab(std::string(DynSym->name()));
+    FileFormat->addStringToDynStrTab(DynSym->getNonVersionedName());
     ++symIdx;
   }
   if (config().codeGenType() == LinkerConfig::DynObj) {
@@ -1022,7 +1022,7 @@ void GNULDBackend::emitSymbol32(llvm::ELF::Elf32_Sym &pSym, LDSymbol *pSymbol,
   else {
     if (IsDynSymTab) {
       auto optSymNameOffset =
-          getOutputFormat()->getOffsetInDynStrTab(std::string(pSymbol->name()));
+          getOutputFormat()->getOffsetInDynStrTab(pSymbol->getNonVersionedName());
       ASSERT(optSymNameOffset.has_value(),
              "Symbol name must be present in .dynstr!");
       pSym.st_name = optSymNameOffset.value();
@@ -1049,10 +1049,10 @@ void GNULDBackend::emitSymbol64(llvm::ELF::Elf64_Sym &pSym, LDSymbol *pSymbol,
     pSym.st_name = 0;
   else {
     if (IsDynSymTab) {
-      auto optSymNameOffset =
-          getOutputFormat()->getOffsetInDynStrTab(std::string(pSymbol->name()));
+      auto optSymNameOffset = getOutputFormat()->getOffsetInDynStrTab(
+          pSymbol->getNonVersionedName());
       ASSERT(optSymNameOffset.has_value(), "Symbol name (" +
-                                               std::string(pSymbol->name()) +
+                                               pSymbol->getNonVersionedName() +
                                                ") must be present in .dynstr!");
       pSym.st_name = optSymNameOffset.value();
     } else {
@@ -5212,7 +5212,7 @@ void GNULDBackend::initSymbolVersioningSections() {
       llvm::ELF::SHT_GNU_versym, llvm::ELF::SHF_ALLOC,
       /*Align=*/sizeof(uint16_t),
       /*EntrySize=*/2);
-  
+
   if (DP->traceSymbolVersioning())
     config().raise(Diag::trace_creating_symbol_versioning_section)
         << ".gnu.version_r";
@@ -5233,7 +5233,9 @@ void GNULDBackend::assignOutputVersionIDs() const {
   for (std::size_t i = 1, e = DynamicSymbols.size(); i < e; ++i) {
     ResolveInfo *R = DynamicSymbols[i];
     ELFDynObjectFile *DynObjFile =
-        llvm::cast<ELFDynObjectFile>(R->resolvedOrigin());
+        llvm::dyn_cast<ELFDynObjectFile>(R->resolvedOrigin());
+    if (!DynObjFile)
+      continue;
     auto InputVerID = R->getSymbolVersionID();
     if (R->isUndef())
       continue;

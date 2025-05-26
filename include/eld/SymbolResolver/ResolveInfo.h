@@ -17,6 +17,7 @@
 #include "eld/Input/ELFFileBase.h"
 #include "eld/Input/Input.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Support/DataTypes.h"
 #include <cstdint>
 #include <string>
@@ -233,6 +234,14 @@ public:
 
   const char *name() const { return SymbolName.data(); }
 
+  std::string getNonVersionedName() const {
+    std::string SymName(SymbolName.data());
+    std::string::size_type pos = SymName.find('@');
+    if (pos == std::string::npos)
+      return SymName;
+    return SymName.substr(0, pos);
+  }
+
   llvm::StringRef getName() const { return SymbolName; }
 
   void setName(llvm::StringRef SymName) { SymbolName = SymName; }
@@ -340,7 +349,7 @@ private:
   llvm::StringRef SymbolName;
   ResolveInfo *SymbolAlias;
   InputFile *SymbolResolvedOrigin;
-  uint16_t SymbolVersionID = 1;
+  uint16_t SymbolVersionID = llvm::ELF::VER_NDX_GLOBAL;
 };
 
 } // namespace eld

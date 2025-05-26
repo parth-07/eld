@@ -19,6 +19,7 @@
 #include "eld/GarbageCollection/GarbageCollection.h"
 #include "eld/Input/ArchiveMemberInput.h"
 #include "eld/Input/BitcodeFile.h"
+#include "eld/Input/ELFDynObjectFile.h"
 #include "eld/Input/ELFObjectFile.h"
 #include "eld/Input/InputTree.h"
 #include "eld/Input/InternalInputFile.h"
@@ -168,7 +169,8 @@ bool ObjectLinker::initStdSections() {
           *getTargetBackend().getDynamicSectionHeadersInputFile());
   }
 
-  if (ThisConfig.shouldBuildDynamicArtifact())
+  if (ThisConfig.shouldBuildDynamicArtifact() &&
+      ThisBackend.shouldEmitVersioningSections())
     ThisBackend.initSymbolVersioningSections();
 
   // initialize target-dependent sections
@@ -1535,11 +1537,23 @@ bool ObjectLinker::addSymbolsToOutput() {
   // We should not be adding any symbol from dynamic shared libraries into
   // getGlobals.
   // Traverse all the resolveInfo and add the output symbol to output
+  std::unordered_set<LDSymbol *> AlreadyInsertedSymbols;
   for (auto &G : ThisModule->getNamePool().getGlobals()) {
     ResolveInfo *R = G.getValue();
+    LDSymbol *Sym = R->outSymbol();
     accountSymForTotalSymStats(*R);
-    if (addSymbolToOutput(*R))
+    if (addSymbolToOutput(*R)) {
+      if (Sym) {
+        if (AlreadyInsertedSymbols.count(Sym))
+          continue;
+        ResolveInfo *SymRI = Sym->resolveInfo();
+        if (R != SymRI) {
+          SymRI->setOutSymbol(Sym);
+        }
+        AlreadyInsertedSymbols.insert(Sym);
+      }
       ThisModule->addSymbol(R);
+    }
     else
       accountSymForDiscardedSymStats(*R);
   }
@@ -3611,6 +3625,10 @@ bool ObjectLinker::readAndProcessInput(Input *Input, bool IsPostLto) {
         ThisConfig.raiseDiagEntry(std::move(ExpRead.error()));
       return false;
     }
+    ELFDynObjectFile *DynObjFile =
+        llvm::cast<ELFDynObjectFile>(CurInput);
+    if (DynObjFile->hasSymbolVersioningInfo())
+      ThisBackend.setShouldEmitVersioningSections(true);
     ThisModule->getDynLibraryList().push_back(CurInput);
   } else if (CurInput->getKind() == InputFile::GNUArchiveFileKind) {
     eld::RegisterTimer T("Read Archive Files", "Read all Input files",

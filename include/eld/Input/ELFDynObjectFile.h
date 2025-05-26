@@ -117,6 +117,17 @@ public:
     return VerDefs[InputVerID];
   }
 
+  bool hasSymbolVersioningInfo() const {
+    return VerSymSection != nullptr;
+  }
+
+  void addNonCanonicalSymbol(LDSymbol *Sym) {
+    NonCanonicalSymbols.push_back(Sym);
+  }
+
+  const std::vector<LDSymbol *> &getNonCanonicalSymbols() const {
+    return NonCanonicalSymbols;
+  }
 private:
   std::vector<ELFSection *> Sections;
   ELFSection *VerDefSection = nullptr;
@@ -128,6 +139,8 @@ private:
   std::vector<uint16_t> VerSyms;
 
   std::vector<uint16_t> OutputVernAuxIDMap;
+
+  std::vector<LDSymbol *> NonCanonicalSymbols;
 };
 
 } // namespace eld
