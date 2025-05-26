@@ -100,6 +100,8 @@ public:
   std::vector<ResolveInfo *> &getLocals() { return LocalSymbols; }
 
   // Get Global symbols.
+  // FIXME: The symbol table must be deterministic. For this we need getGlobals to
+  // be deterministic as well!
   llvm::StringMap<ResolveInfo *> &getGlobals() { return GlobalSymbols; }
 
   void setupNullSymbol();
@@ -120,6 +122,10 @@ public:
   void addSharedLibSymbol(LDSymbol *Sym) {
     ASSERT(Sym->resolveInfo(), "symbol must have a resolveInfo!");
     SharedLibsSymbols[Sym->resolveInfo()] = Sym;
+  }
+
+  void addSharedLibSymbol(LDSymbol *Sym, ResolveInfo *RI) {
+    SharedLibsSymbols[RI] = Sym;
   }
 
   LDSymbol *getSharedLibSymbol(const ResolveInfo *RI) {

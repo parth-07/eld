@@ -843,6 +843,14 @@ public:
 
   GNUVerNeedFragment *getGNUVerNeedFragment() const { return GNUVerNeedFrag; }
 
+  void setShouldEmitVersioningSections(bool Should) {
+    ShouldEmitVersioningSections = Should;
+  }
+
+  bool shouldEmitVersioningSections() const {
+    return ShouldEmitVersioningSections;
+  }
+
 protected:
   virtual int numReservedSegments() const { return m_NumReservedSegments; }
 
@@ -1156,6 +1164,7 @@ protected:
 
   bool m_NeedPhdr = false;
 
+  bool ShouldEmitVersioningSections = false;
   ELFSection *GNUVerSymSection = nullptr;
   ELFSection *GNUVerNeedSection = nullptr;
   GNUVerNeedFragment *GNUVerNeedFrag = nullptr;
