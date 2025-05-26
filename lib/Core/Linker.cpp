@@ -410,6 +410,7 @@ bool Linker::normalize() {
     if (!ObjLinker->normalize())
       return false;
   }
+  IR->normalizeSymbols();
   return true;
 }
 

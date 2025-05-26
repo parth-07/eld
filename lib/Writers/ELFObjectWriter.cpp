@@ -688,6 +688,8 @@ uint64_t ELFObjectWriter::getSectEntrySize(ELFSection *CurSection) const {
   // Ref: http://www.sco.com/developers/gabi/2003-12-17/ch4.sheader.html
   if (CurSection->getFlags() & llvm::ELF::SHF_STRINGS)
     return CurSection->getEntSize();
+  if (CurSection->getType() == llvm::ELF::SHT_GNU_versym)
+    return CurSection->getEntSize();
   return 0x0;
 }
 

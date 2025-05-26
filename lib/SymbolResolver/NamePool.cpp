@@ -21,6 +21,7 @@
 #include "eld/Support/MsgHandling.h"
 #include "eld/Support/StringRefUtils.h"
 #include "eld/SymbolResolver/LDSymbol.h"
+#include "eld/SymbolResolver/ResolveInfo.h"
 #include "eld/SymbolResolver/StaticResolver.h"
 #include "eld/SymbolResolver/SymbolInfo.h"
 
@@ -232,7 +233,11 @@ ResolveInfo *NamePool::findInfo(std::string SymbolName) {
   auto I = GlobalSymbols.find(SymbolName);
   if (I == GlobalSymbols.end())
     return nullptr;
-  return I->getValue();
+  ResolveInfo *RI = I->getValue();
+  LDSymbol *S = RI->outSymbol();
+  if (!S)
+    return RI;
+  return S->resolveInfo();
 }
 
 /// findInfo - find the resolved ResolveInfo
@@ -241,7 +246,11 @@ const ResolveInfo *NamePool::findInfo(std::string SymbolName) const {
   auto I = GlobalSymbols.find(SymbolName);
   if (I == GlobalSymbols.end())
     return nullptr;
-  return I->getValue();
+  ResolveInfo *RI = I->getValue();
+  LDSymbol *S = RI->outSymbol();
+  if (!S)
+    return RI;
+  return S->resolveInfo();
 }
 
 /// findSymbol - find the resolved output LDSymbol

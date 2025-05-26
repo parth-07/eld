@@ -96,6 +96,8 @@ public:
                                Relocation::Type Type, LDSymbol &PSym,
                                uint32_t POffset, Relocation::Address CurAddend);
 
+  void normalizeSymbols();
+
 private:
   LDSymbol *
   addSymbolFromObject(InputFile &Input, const std::string &SymbolName,
@@ -127,6 +129,9 @@ private:
   LinkerConfig &ThisConfig;
   bool IsGarbageCollected;
   InputBuilder ThisInputBuilder;
+  // 0th element -> Canonical version symbol, 1st element -> Non-canonical
+  // version symbol.
+  std::vector<std::pair<LDSymbol *, LDSymbol *>> VersionedSymbols;
 };
 
 template <>
