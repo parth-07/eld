@@ -2040,7 +2040,7 @@ void GNULDBackend::evaluateAssignments(OutputSectionEntry *out,
             << utility::toHex(FragOffset) << utility::toHex(F->size());
       }
       if (fillExpression)
-        getModule().setFragmentPaddingValue(F, fillExpression->result());
+        getModule().setFragmentPaddingValue(F, fillExpression->resultOrZero());
       offset = F->getOffset(config().getDiagEngine()) + F->size();
       dotSymbol->setValue(OutSection->addr() + offset);
       offset = dotSymbol->value() - OutSection->addr();
@@ -2137,8 +2137,9 @@ bool GNULDBackend::createSegmentsFromLinkerScript() {
   for (; phdr != phdrEnd; ++phdr) {
     uint64_t Flags = 0;
     if ((*phdr)->spec().flags()) {
+      // FIXME: Why don't we error out from the function if evaluation fails here?
       (*phdr)->spec().flags()->evaluateAndRaiseError();
-      Flags = (*phdr)->spec().flags()->result();
+      Flags = (*phdr)->spec().flags()->resultOrZero();
     }
     ELFSegment *segment =
         make<ELFSegment>((*phdr)->spec().type(), Flags,
@@ -2841,7 +2842,7 @@ bool GNULDBackend::placeOutputSections() {
           uint64_t out_align = 0x0;
           if ((*out)->prolog().hasAlign()) {
             (*out)->prolog().align().evaluateAndRaiseError();
-            out_align = (*out)->prolog().align().result();
+            out_align = (*out)->prolog().align().resultOrZero();
             if (out_align > elem->getAddrAlign())
               elem->setAddrAlign(out_align);
           }

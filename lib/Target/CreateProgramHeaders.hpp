@@ -267,6 +267,7 @@ bool GNULDBackend::createProgramHdrs() {
     bool doAlign = true;
     // If the output section specified a VMA value.
     if ((*out)->prolog().hasVMA()) {
+      // FIXME: Why continue the layout if an error has happened?
       (*out)->prolog().vma().evaluateAndRaiseError();
       // If the output section descriptor has an alignment specified
       // honor the alignment specified, the alignment would have been
@@ -275,7 +276,7 @@ bool GNULDBackend::createProgramHdrs() {
       // specified for the output section but a "VMA" was specified.
       if (!(*out)->prolog().hasAlign())
         doAlign = false;
-      scriptvma = (*out)->prolog().vma().result();
+      scriptvma = (*out)->prolog().vma().resultOrZero();
       if (isCurAlloc)
         dotSymbol->setValue(*scriptvma);
       if ((*out)->epilog().hasRegion() &&
@@ -473,8 +474,9 @@ bool GNULDBackend::createProgramHdrs() {
         pma = R.getAddr();
         hasLMARegion = true;
       } else if (useSetLMA) {
+        // FIXME: Why continue doing layout on error?
         (*out)->prolog().lma().evaluateAndRaiseError();
-        pma = (*out)->prolog().lma().result();
+        pma = (*out)->prolog().lma().resultOrZero();
       } else if (!prev || !disconnect_lma_vma) {
         pma = vma;
       } else if ((last_section_needs_new_segment) && (!disconnect_lma_vma)) {
@@ -567,7 +569,7 @@ bool GNULDBackend::createProgramHdrs() {
         hasLMARegion = true;
       } else if (useSetLMA) {
         (*out)->prolog().lma().evaluateAndRaiseError();
-        pma = (*out)->prolog().lma().result();
+        pma = (*out)->prolog().lma().resultOrZero();
       } else if (!prev || !disconnect_lma_vma) {
         pma = vma;
       } else {

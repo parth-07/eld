@@ -164,7 +164,7 @@ bool GNULDBackend::createScriptProgramHdrs() {
     // If the output section specified a VMA value.
     if ((*out)->prolog().hasVMA()) {
       (*out)->prolog().vma().evaluateAndRaiseError();
-      scriptvma = (*out)->prolog().vma().result();
+      scriptvma = (*out)->prolog().vma().resultOrZero();
       if (isCurAllocSection)
         dotSymbol->setValue(*scriptvma);
       if ((*out)->epilog().hasRegion() &&
@@ -311,11 +311,11 @@ bool GNULDBackend::createScriptProgramHdrs() {
         hasLMARegion = true;
       } else if ((*out)->prolog().hasLMA()) {
         (*out)->prolog().lma().evaluateAndRaiseError();
-        pma = (*out)->prolog().lma().result();
+        pma = (*out)->prolog().lma().resultOrZero();
       } else if (curLoadSegment->hasFixedLMA()) {
         // If the current segment has a fixed LMA address, then
         curLoadSegment->fixedLMA()->evaluateAndRaiseError();
-        pma = curLoadSegment->fixedLMA()->result();
+        pma = curLoadSegment->fixedLMA()->resultOrZero();
       }
     }
     if (doAlign)

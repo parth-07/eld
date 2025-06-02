@@ -10,6 +10,7 @@
 #include "eld/Object/OutputSectionEntry.h"
 #include "eld/Script/Expression.h"
 #include "llvm/Support/Format.h"
+#include <cstdint>
 
 using namespace eld;
 
@@ -55,7 +56,15 @@ eld::Expected<uint64_t> ScriptMemoryRegion::getOrigin() const {
 eld::Expected<uint64_t> ScriptMemoryRegion::getLength() const {
   MemorySpec *Spec = MMemoryDesc->getMemorySpec();
   Expression *Length = Spec->getLength();
-  return Length->evaluateAndReturnError();
+  if (Length->hasResult())
+    return Length->result();
+  auto E = Length->evaluateAndReturnError();
+  if (E) {
+    if (E.value() == 0) {
+      DiagnosticEngine &DE = Length->getDiagEngine();
+    }
+  }
+  return E;
 }
 
 size_t ScriptMemoryRegion::getSize() const {

@@ -385,7 +385,7 @@ std::string plugin::Script::PHDRDescriptor::getSegmentFlags() const {
     return "";
   m_PhdrDesc->getPhdrSpec()->flags()->evaluateAndRaiseError();
   return std::string("0x") +
-         eld::utility::toHex(m_PhdrDesc->getPhdrSpec()->flags()->result());
+         eld::utility::toHex(m_PhdrDesc->getPhdrSpec()->flags()->resultOrZero());
 }
 
 eld::ScriptCommand *plugin::Script::PHDRDescriptor::getCommand() const {

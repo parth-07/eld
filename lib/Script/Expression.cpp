@@ -15,13 +15,14 @@
 #include "eld/Target/ELFSegment.h"
 #include "eld/Target/GNULDBackend.h"
 #include "llvm/Support/MathExtras.h"
+#include <optional>
 
 using namespace eld;
 
 Expression::Expression(std::string Name, Type Type, Module &Module,
                        GNULDBackend &Backend, uint64_t Value)
     : Name(Name), ThisType(Type), ThisModule(Module), ThisBackend(Backend),
-      MResult(0), EvaluatedValue(Value) {}
+      MResult(std::nullopt), EvaluatedValue(Value) {}
 
 void Expression::setContext(const std::string &Context) {
   ASSERT(!Context.empty(), "Empty context for expression");
@@ -31,6 +32,12 @@ void Expression::setContext(const std::string &Context) {
 uint64_t Expression::result() const {
   ASSERT(MResult, "Expression result is not yet committed");
   return *MResult;
+}
+
+uint64_t Expression::resultOrZero() const {
+  if (MResult)
+    return MResult.value();
+  return 0;
 }
 
 std::unique_ptr<plugin::DiagnosticEntry> Expression::addContextToDiagEntry(
@@ -71,7 +78,6 @@ std::optional<uint64_t> Expression::evaluateAndRaiseError() {
     // we don't expect the caller to exit due to this error.
     ThisModule.getConfig().raiseDiagEntry(
         addContextToDiagEntry(std::move(Result.error()), MContext));
-    commit();
     return {};
   }
   commit();
@@ -91,6 +97,10 @@ void Expression::setContextRecursively(const std::string &Context) {
     L->setContextRecursively(Context);
   if (Expression *R = getRightExpression())
     R->setContextRecursively(Context);
+}
+
+DiagnosticEngine &Expression::getDiagEngine() const {
+  return *(ThisModule.getConfig().getDiagEngine());
 }
 
 //===----------------------------------------------------------------------===//
@@ -629,14 +639,14 @@ eld::Expected<uint64_t> Ternary::evalImpl() {
   return Cond.value() ? LeftExpression.eval() : RightExpression.eval();
 }
 void Ternary::getSymbols(std::vector<ResolveInfo *> &Symbols) {
-  if (ConditionExpression.result())
+  if (ConditionExpression.resultOrZero())
     LeftExpression.getSymbols(Symbols);
   else
     RightExpression.getSymbols(Symbols);
 }
 
 void Ternary::getSymbolNames(std::unordered_set<std::string> &SymbolTokens) {
-  if (ConditionExpression.result())
+  if (ConditionExpression.resultOrZero())
     LeftExpression.getSymbolNames(SymbolTokens);
   else
     RightExpression.getSymbolNames(SymbolTokens);

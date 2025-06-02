@@ -18,6 +18,7 @@
 #include <unordered_set>
 
 namespace eld {
+class DiagnosticEngine;
 class LinkerScript;
 class Module;
 class GNULDBackend;
@@ -241,6 +242,9 @@ public:
   virtual void dump(llvm::raw_ostream &Outs, bool ShowValues = true) const = 0;
 
   uint64_t result() const;
+  bool hasResult() const { return MResult.has_value(); }
+  uint64_t resultOrZero() const;
+
   const std::string &name() const { return Name; }
   Type type() const { return ThisType; }
   Type getType() const { return ThisType; }
@@ -272,6 +276,8 @@ public:
       return Name + "=";
     return "=";
   }
+
+  DiagnosticEngine& getDiagEngine() const;
 
 protected:
   std::string Name;   /// string representation of the expression
