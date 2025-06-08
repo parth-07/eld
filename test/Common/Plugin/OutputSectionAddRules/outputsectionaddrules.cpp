@@ -19,7 +19,7 @@ public:
   void Init(std::string Options) override {}
 
   void processOutputSection(OutputSection O) override {
-    if (getLinker()->getState() == LinkerWrapper::CreatingSections) {
+    if (getLinker()->isCreatingSectionsLinkState()) {
       std::cout << "\n" << O.getName();
       if (!O.getLinkerScriptRules().size())
         return;

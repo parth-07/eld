@@ -16,7 +16,7 @@ public:
   }
 
   Status Run(bool Trace) override {
-    if (getLinker()->getState() != LinkerWrapper::CreatingSections)
+    if (!getLinker()->isCreatingSectionsLinkState())
       return eld::plugin::Plugin::Status::SUCCESS;
 
     eld::Expected<eld::plugin::OutputSection> expFooSect =

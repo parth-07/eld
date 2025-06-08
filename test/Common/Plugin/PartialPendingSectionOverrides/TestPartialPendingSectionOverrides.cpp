@@ -22,8 +22,8 @@ public:
   void processOutputSection(OutputSection S) override { return; }
 
   Status Run(bool Trace) override {
-    if (getLinker()->getState() == LinkerWrapper::AfterLayout ||
-        getLinker()->getState() == LinkerWrapper::CreatingSections)
+    if (getLinker()->isAfterLayoutLinkState() ||
+        getLinker()->isCreatingSectionsLinkState())
       return Status::SUCCESS;
     eld::Expected<OutputSection> expO =
         getLinker()->getOutputSection(".data");
@@ -59,8 +59,8 @@ public:
   void processOutputSection(OutputSection S) override { return; }
 
   Status Run(bool Trace) override {
-    if (getLinker()->getState() == LinkerWrapper::AfterLayout ||
-        getLinker()->getState() == LinkerWrapper::CreatingSections)
+    if (getLinker()->isAfterLayoutLinkState() ||
+        getLinker()->isCreatingSectionsLinkState())
       return Status::SUCCESS;
     eld::Expected<OutputSection> expO =
         getLinker()->getOutputSection(".data");

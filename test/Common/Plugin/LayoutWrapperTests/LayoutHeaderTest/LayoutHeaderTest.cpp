@@ -13,7 +13,7 @@ public:
   // Perform any initialization here
   void Init(std::string Options) override {
     auto linker = getLinker();
-    if (linker->getState() != LinkerWrapper::AfterLayout)
+    if (!linker->isAfterLayoutLinkState())
       return;
 
     std::unique_ptr<LayoutWrapper> layout =

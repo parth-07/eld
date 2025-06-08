@@ -14,7 +14,7 @@ public:
   void Init(std::string Options) override {}
 
   void processOutputSection(eld::plugin::OutputSection O) override {
-    if (getLinker()->getState() != eld::plugin::LinkerWrapper::CreatingSections)
+    if (!getLinker()->isCreatingSectionsLinkState())
       return;
     if (O.getName() == ".rodata")
       Rodata = O;
@@ -23,7 +23,7 @@ public:
   }
 
   Status Run(bool Trace) override {
-    if (getLinker()->getState() != eld::plugin::LinkerWrapper::CreatingSections)
+    if (!getLinker()->isCreatingSectionsLinkState())
       return Status::SUCCESS;
     std::cout << "Plugin runs\n";
     assert(Text && Rodata);

@@ -17,7 +17,7 @@ public:
   void processOutputSection(OutputSection S) override { return; }
 
   Status Run(bool Trace) override {
-    if (getLinker()->getState() != LinkerWrapper::CreatingSections)
+    if (!getLinker()->isCreatingSectionsLinkState())
       return Status::SUCCESS;
     eld::Expected<eld::plugin::OutputSection> expO =
         getLinker()->getOutputSection(".data");

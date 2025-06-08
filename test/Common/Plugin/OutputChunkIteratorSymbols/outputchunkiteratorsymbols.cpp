@@ -19,7 +19,7 @@ public:
   void Init(std::string Options) override {}
 
   void processOutputSection(OutputSection O) override {
-    if (getLinker()->getState() != LinkerWrapper::CreatingSections)
+    if (!getLinker()->isCreatingSectionsLinkState())
       return;
     if (O.getName() == ".foo")
       OutputSections.push_back(O);
@@ -56,7 +56,7 @@ public:
   }
 
   Status Run(bool Trace) override {
-    if (getLinker()->getState() != LinkerWrapper::CreatingSections)
+    if (!getLinker()->isCreatingSectionsLinkState())
       return eld::plugin::Plugin::Status::SUCCESS;
 
     std::vector<eld::plugin::LinkerScriptRule> Rules;

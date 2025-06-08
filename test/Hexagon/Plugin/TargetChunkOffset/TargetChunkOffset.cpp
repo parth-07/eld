@@ -19,24 +19,24 @@ public:
   }
 
   void processOutputSection(OutputSection O) override {
-    if (getLinker()->getState() == LinkerWrapper::BeforeLayout)
+    if (getLinker()->isBeforeLayoutLinkState())
       return;
 
-    if (getLinker()->getState() == LinkerWrapper::CreatingSections)
+    if (getLinker()->isCreatingSectionsLinkState())
       return;
 
-    if (getLinker()->getState() == LinkerWrapper::AfterLayout)
+    if (getLinker()->isAfterLayoutLinkState())
       return;
   }
 
   // After the linker lays out the image, but before it creates the elf file,
   // it will call this run function.
   Status Run(bool Trace) override {
-    if (getLinker()->getState() == LinkerWrapper::BeforeLayout)
+    if (getLinker()->isBeforeLayoutLinkState())
       return eld::plugin::Plugin::Status::SUCCESS;
-    if (getLinker()->getState() == LinkerWrapper::AfterLayout)
+    if (getLinker()->isAfterLayoutLinkState())
       return eld::plugin::Plugin::Status::SUCCESS;
-    if (getLinker()->getState() == LinkerWrapper::CreatingSections)
+    if (getLinker()->isCreatingSectionsLinkState())
       return eld::plugin::Plugin::Status::SUCCESS;
     return Plugin::Status::SUCCESS;
   }
