@@ -1,0 +1,7 @@
+; RUN: eld-clang %s -o %t.1.o -target arm -c -ffunction-sections 1.c
+; RUN: eld-clang %s -o %t.2.o -target arm -c -ffunction-sections 2.c
+; RUN: ld.eld %t.1.o -o %t.lib1.so -shared -soname=mylib.so
+; RUN: ld.eld %t.2.o -o %t.lib2.so -shared -soname=mylib.so
+; RUN: ld.eld %t.lib1.so %t.lib2.so -o %t.a.out --no-fatal-warnings 2>&1 | FileCheck %s
+
+; CHECK: ld.eld: warning: multiple DSOs with the same SONAME 'mylib.so' found: {{%t.lib1.so, %t.lib2.so|%t.lib2.so, %t.lib1.so}}

@@ -173,6 +173,7 @@ DIAG(warn_unknown_trace_option, DiagnosticEngine::Warning,
      "Unknown trace option '%0'")
 DIAG(err_shared_objects_in_partial_link, DiagnosticEngine::Error,
     "Shared libraries are not allowed with partial links, found %0")
+DIAG(warn_duplicate_soname, Warning, "multiple DSOs with the same SONAME '%0' found: %1")
 DIAG(err_patch_base_not_executable, DiagnosticEngine::Error,
      "The file %0, specified by --patch-base, must be an executable ELF file")
 DIAG(err_patch_not_static, DiagnosticEngine::Error,

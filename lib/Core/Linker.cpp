@@ -32,6 +32,9 @@
 #include "eld/Support/RegisterTimer.h"
 #include "eld/Support/TargetRegistry.h"
 #include "eld/SymbolResolver/IRBuilder.h"
+#include "eld/Input/ELFDynObjectFile.h"
+#include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/SmallString.h"
 #include "eld/SymbolResolver/LDSymbol.h"
 #include "eld/Target/GNULDBackend.h"
 #include "llvm/Object/ELFTypes.h"
@@ -337,6 +340,34 @@ bool Linker::normalize() {
     // Load plugins.
     if (!loadNonUniversalPlugins())
       return false;
+  }
+
+  // Check for duplicate SONAMEs
+  {
+    llvm::StringMap<std::vector<std::string>> sonameMap;
+    for (eld::InputFile *inputFile : ThisModule->getObjectList()) {
+      if (auto *dynObjFile = llvm::dyn_cast<eld::ELFDynObjectFile>(inputFile)) {
+        std::string soname = dynObjFile->getSOName();
+        if (!soname.empty()) {
+          sonameMap[soname].push_back(dynObjFile->getInput()->getName().str());
+        }
+      }
+    }
+
+    for (const auto &entry : sonameMap) {
+      if (entry.getValue().size() > 1) {
+        llvm::SmallString<128> fileList;
+        for (size_t i = 0; i < entry.getValue().size(); ++i) {
+          if (i > 0) {
+            fileList += ", ";
+          }
+          fileList += entry.getValue()[i];
+        }
+        ThisConfig->raise(eld::Diag::warn_duplicate_soname)
+            << entry.getKey() // SONAME
+            << fileList.c_str(); // List of files
+      }
+    }
   }
 
   // 2. - set up code position
