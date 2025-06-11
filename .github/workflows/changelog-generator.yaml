@@ -20,7 +20,7 @@ jobs:
         id: git-cliff
         with:
           config: cliff.toml
-          args: --tag --verbose
+          args: --tag ${{ github.ref_name }} --verbose
         env:
           OUTPUT: CHANGELOG.md
 
