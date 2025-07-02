@@ -335,6 +335,10 @@ public:
 
   bool isFatalWarnings() const { return BFatalWarnings; }
 
+  void setWarningsAsErrors(bool PEnable = true) { BWarningsAsErrors = PEnable; }
+
+  bool isWarningsAsErrors() const { return BWarningsAsErrors; }
+
   void setLTOOptRemarksFile(bool PEnable = false) {
     BLTOOptRemarksFile = PEnable;
   }
@@ -394,6 +398,10 @@ public:
   const std::optional<std::string> &getSaveTempsDir() const {
     return SaveTempsDir;
   }
+
+  void setDwoDir(const std::string &S) { DwoDir = S; }
+
+  const std::optional<std::string> &getDwoDir() const { return DwoDir; }
 
   bool preserveAllLTO() const;
 
@@ -870,6 +878,10 @@ public:
 
   bool getRISCVRelaxToC() const { return BRiscvRelaxToC; }
 
+  void setRISCVRelaxXqci(bool Value) { BRiscvRelaxXqci = Value; }
+
+  bool getRISCVRelaxXqci() const { return BRiscvRelaxXqci; }
+
   bool warnCommon() const { return BWarnCommon; }
 
   void setWarnCommon() { BWarnCommon = true; }
@@ -1159,6 +1171,7 @@ private:
   bool BBinaryInput = false;       // -b [input-format], --format=[input-format]
   bool BDefineCommon = false;      // -d, -dc, -dp
   bool BFatalWarnings = false;     // --fatal-warnings
+  bool BWarningsAsErrors = false;  // -Werror
   bool BLTOOptRemarksFile = false; // --opt-record-file
   bool BLTOOptRemarksDisplayHotness = false; // --display-hotness-remarks
   bool BNoStdlib = false;                    // -nostdlib
@@ -1196,6 +1209,7 @@ private:
   unsigned int HashStyle = SystemV; // HashStyle
   bool Savetemps = false;           // -save-temps
   std::optional<std::string> SaveTempsDir; // -save-temps=
+  std::optional<std::string> DwoDir;       // -dwodir=
   bool Rosegment = false; // merge read only with readonly/execute segments.
   std::vector<std::string>
       UnparsedLTOOptions;          // Unparsed -flto-options, to pass to plugin.
@@ -1225,6 +1239,7 @@ private:
   bool RiscvZeroRelax = true;             // Zero-page relaxation
   bool RiscvGPRelax = true;               // GP relaxation
   bool BRiscvRelaxToC = true; // enable riscv relax to compressed code
+  bool BRiscvRelaxXqci = false; // enable riscv relaxations for xqci
   bool AllowIncompatibleSectionsMix = false; // Allow incompatibleSections;
   bool ProgressBar = false;                  // Show progressbar.
   bool RecordInputFiles = false;             // --reproduce

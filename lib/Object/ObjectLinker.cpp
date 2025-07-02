@@ -741,7 +741,7 @@ bool ObjectLinker::mergeInputSections(ObjectBuilder &Builder,
         if (!llvm::dyn_cast<eld::EhFrameSection>(Sect)
                  ->createCIEAndFDEFragments())
           return false;
-        llvm::dyn_cast<eld::EhFrameSection>(Sect)->finishAddingFragments();
+        llvm::dyn_cast<eld::EhFrameSection>(Sect)->finishAddingFragments(*ThisModule);
         if (ThisBackend.getEhFrameHdr() &&
             Sect->getKind() == LDFileFormat::EhFrame) {
           ThisBackend.getEhFrameHdr()->addCIE(
@@ -2980,6 +2980,8 @@ bool ObjectLinker::doLto(llvm::lto::LTO &LTO) {
       report_fatal_error(Twine("unable to add memory buffer: ") +
                          toString(S.takeError()));
     *(*S)->OS << MB->getBuffer();
+    if (Error Err = (*S)->commit())
+      report_fatal_error(std::move(Err));
   };
 
   llvm::FileCache ThinLTOCache;
@@ -3148,6 +3150,9 @@ bool ObjectLinker::createLTOObject(void) {
   llvm::lto::Config Conf;
   std::vector<std::string> Options;
   processCodegenOptions(ThisConfig.options().codeGenOpts(), Conf, Options);
+
+  if (const auto &O = ThisConfig.options().getDwoDir())
+    Conf.DwoDir = *O;
 
   ThisBackend.AddLTOOptions(Options);
 

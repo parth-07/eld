@@ -74,6 +74,11 @@ x86_64LinkDriver::parseOptions(ArrayRef<const char *> Args,
     printVersionInfo();
     return nullptr;
   }
+  // --about
+  if (ArgList.hasArg(OPT_x86_64LinkOptTable::about)) {
+    printAboutInfo();
+    return nullptr;
+  }
   // -repository-version
   if (ArgList.hasArg(OPT_x86_64LinkOptTable::repository_version)) {
     printRepositoryVersion();
@@ -113,6 +118,7 @@ int x86_64LinkDriver::link(llvm::ArrayRef<const char *> Args,
     if (ArgList.hasArg(OPT_x86_64LinkOptTable::help) ||
         ArgList.hasArg(OPT_x86_64LinkOptTable::help_hidden) ||
         ArgList.hasArg(OPT_x86_64LinkOptTable::version) ||
+        ArgList.hasArg(OPT_x86_64LinkOptTable::about) ||
         ArgList.hasArg(OPT_x86_64LinkOptTable::repository_version)) {
       return LINK_SUCCESS;
     }
@@ -160,4 +166,9 @@ bool x86_64LinkDriver::processTargetOptions(llvm::opt::InputArgList &Args) {
 template <class T>
 bool x86_64LinkDriver::processLLVMOptions(llvm::opt::InputArgList &Args) {
   return GnuLdDriver::processLLVMOptions<T>(Args);
+}
+
+
+bool x86_64LinkDriver::isValidEmulation(llvm::StringRef Emulation){
+  return Emulation == "elf_x86_64" || Emulation == "elf_amd64";
 }

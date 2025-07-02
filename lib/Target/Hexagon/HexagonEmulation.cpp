@@ -35,6 +35,8 @@ static bool ELDEmulateHexagonELF(LinkerScript &pScript, LinkerConfig &pConfig) {
                                .Case("v81", "hexagonv81")
                                .Case("v83", "hexagonv83")
                                .Case("v85", "hexagonv85")
+                               .Case("v87", "hexagonv87")
+                               .Case("v89", "hexagonv89")
                                .Default("invalid");
     if (flag == "deprecated") {
       pConfig.raise(Diag::deprecated_emulation)
@@ -56,11 +58,6 @@ static bool ELDEmulateHexagonELF(LinkerScript &pScript, LinkerConfig &pConfig) {
   }
   if (LinkerConfig::DynObj == pConfig.codeGenType())
     pConfig.options().setGPSize(0);
-
-  // Always show warnings on Hexagon unless user
-  // used -Wno-linker-script
-  if (!pConfig.hasShowLinkerScriptWarnings())
-    pConfig.setShowLinkerScriptWarning(true);
 
   if (!ELDEmulateELF(pScript, pConfig))
     return false;

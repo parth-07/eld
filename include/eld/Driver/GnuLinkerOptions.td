@@ -795,6 +795,7 @@ def W : Joined<["-"], "W">,
              "processing linker script memory command\n"
              "\t\t\t -W[no-]bad-dot-assignments : display warnings for bad "
              "dot assignments\n"
+             "\t\t\t -W[no-]error : treat warnings as errors\n"
              "\t\t\t -Wwhole-archive : display a warning when whole-archive "
              "is enabled for any archive file\n"
             >,
@@ -918,6 +919,11 @@ defm dump_response_file
                     "Dump response file to output file">,
                     MetaVarName<"<outputfilename>">,
       Group<grp_extendedopts>;
+def about :
+     Flag<["--"], "about">,
+      HelpText<"Emit detailed information about the linker">,
+      Group<grp_extendedopts>;
+
 
 //===----------------------------------------------------------------------===//
 /// Map file
@@ -1041,6 +1047,10 @@ defm include_lto_filelist
           "Specify a list of files with embedded bitcode sections that are to "
           "be used for LTO. This has no effect if -flto switch is used">,
       MetaVarName<"<list_of_files>">,
+      Group<grp_ltooptions>;
+defm dwodir
+    : smDash<"dwodir", "dwodir",
+             "Directory to save .dwo files when split DWARF is used in LTO">,
       Group<grp_ltooptions>;
 
 //===----------------------------------------------------------------------===//

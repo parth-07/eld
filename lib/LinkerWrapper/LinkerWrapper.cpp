@@ -711,6 +711,10 @@ std::vector<plugin::InputFile> LinkerWrapper::getInputFiles() const {
   return InputFiles;
 }
 
+std::string eld::plugin::LinkerWrapper::getLinkerVersion() const {
+  return eld::getELDVersion().str();
+}
+
 plugin::LinkerWrapper::LinkMode LinkerWrapper::getLinkMode() const {
   const eld::LinkerConfig &Config = m_Module.getConfig();
 
@@ -970,8 +974,9 @@ bool LinkerWrapper::isVerbose() const {
 
 eld::Expected<std::vector<plugin::OutputSection>>
 LinkerWrapper::getAllOutputSections() const {
-  if (getState() < State::AfterLayout)
-    RETURN_INVALID_LINK_STATE_ERR("CreatingSegments, AfterLayout");
+  if (getState() < State::CreatingSections)
+    RETURN_INVALID_LINK_STATE_ERR(
+        "CreatingSegments, AfterLayout, CreatingSections");
 
   SectionMap sectMap = m_Module.getScript().sectionMap();
   std::vector<plugin::OutputSection> outputSects;

@@ -133,7 +133,7 @@ bool GnuLdDriver::checkAndRaiseTraceDiagEntry(eld::Expected<void> E) const {
 
 const char *GnuLdDriver::getLtoStatus() const { return "Enabled"; }
 
-void GnuLdDriver::printVersionInfo() const {
+void GnuLdDriver::printAboutInfo() const {
   outs() << "Supported Targets: ";
   for (const auto &x : m_SupportedTargets)
     outs() << x << " ";
@@ -148,6 +148,15 @@ void GnuLdDriver::printVersionInfo() const {
          << LINKER_PLUGIN_API_MAJOR_VERSION << "."
          << LINKER_PLUGIN_API_MINOR_VERSION << "\n";
   outs() << "LTO Support " << getLtoStatus() << "\n";
+}
+
+void GnuLdDriver::printVersionInfo() const {
+  outs() << "eld " << eld::getELDVersion() << " (GNU Compatible linker)"
+         << "\n";
+  outs() << "Supported Targets: ";
+  for (const auto &x : m_SupportedTargets)
+    outs() << x << " ";
+  outs() << "\n";
 }
 
 // Some command line options or some combinations of them are not allowed.
@@ -624,6 +633,9 @@ bool GnuLdDriver::processOptions(llvm::opt::InputArgList &Args) {
     ltoOptions.push_back(arg->getValue());
   }
   Config.addCommandLine(Table->getOptionName(T::flto_options), ltoOptions);
+
+  if (const Arg *arg = Args.getLastArg(T::dwodir))
+    Config.options().setDwoDir(arg->getValue());
 
   // --no-align-segments
   if (Args.hasArg(T::no_align_segments))

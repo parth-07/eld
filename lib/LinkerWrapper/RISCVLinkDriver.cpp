@@ -94,6 +94,11 @@ opt::OptTable *RISCVLinkDriver::parseOptions(ArrayRef<const char *> Args,
     printVersionInfo();
     return nullptr;
   }
+  // --about
+  if (ArgList.hasArg(OPT_RISCVLinkOptTable::about)) {
+    printAboutInfo();
+    return nullptr;
+  }
   // -repository-version
   if (ArgList.hasArg(OPT_RISCVLinkOptTable::repository_version)) {
     printRepositoryVersion();
@@ -115,6 +120,11 @@ opt::OptTable *RISCVLinkDriver::parseOptions(ArrayRef<const char *> Args,
   // --no-relax-c
   if (ArgList.hasArg(OPT_RISCVLinkOptTable::no_riscv_relax_compressed))
     Config.options().setRISCVRelaxToC(false);
+
+  // --relax-xqci, --no-relax-xqci  (default)
+  Config.options().setRISCVRelaxXqci(
+      ArgList.hasFlag(OPT_RISCVLinkOptTable::riscv_relax_xqci,
+                      OPT_RISCVLinkOptTable::no_riscv_relax_xqci, false));
 
   // --enable-bss-mixing
   if (ArgList.hasArg(OPT_RISCVLinkOptTable::enable_bss_mixing))
@@ -174,6 +184,7 @@ int RISCVLinkDriver::link(llvm::ArrayRef<const char *> Args,
     if (ArgList.hasArg(OPT_RISCVLinkOptTable::help) ||
         ArgList.hasArg(OPT_RISCVLinkOptTable::help_hidden) ||
         ArgList.hasArg(OPT_RISCVLinkOptTable::version) ||
+        ArgList.hasArg(OPT_RISCVLinkOptTable::about) ||
         ArgList.hasArg(OPT_RISCVLinkOptTable::repository_version)) {
       return LINK_SUCCESS;
     }
