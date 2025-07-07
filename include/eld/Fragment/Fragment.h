@@ -49,6 +49,7 @@ public:
     Null,
     MergeString,
     BuildID,
+    GNUVerDef,
     GNUVerSym,
     GNUVerNeed
   };

@@ -323,6 +323,7 @@ bool ObjectLinker::normalize() {
 bool ObjectLinker::parseVersionScript() {
   if (!ThisConfig.options().hasVersionScript())
     return true;
+  ThisBackend.setShouldEmitVersioningSections(true);
   LayoutInfo *layoutInfo = ThisModule->getLayoutInfo();
   for (const auto &List : ThisConfig.options().getVersionScripts()) {
     Input *VersionScriptInput =
