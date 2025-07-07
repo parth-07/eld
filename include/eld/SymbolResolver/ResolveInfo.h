@@ -349,7 +349,7 @@ private:
   llvm::StringRef SymbolName;
   ResolveInfo *SymbolAlias;
   InputFile *SymbolResolvedOrigin;
-  uint16_t SymbolVersionID = llvm::ELF::VER_NDX_GLOBAL;
+  uint16_t SymbolVersionID = llvm::ELF::VER_NDX_LOCAL;
 };
 
 } // namespace eld

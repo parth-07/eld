@@ -404,11 +404,11 @@ LDSymbol *IRBuilder::addSymbolFromDynObj(
     // library, we either need to export the symbol by dynamic list or sometimes
     // we export it since the dynamic library may be referring it defined in
     // executable, either case it must be in .dynsym
+    ResolveInfo *InputSymRI = InputSym->resolveInfo();
+    LDSymbol *OutSym = InputSymRI->outSymbol();
     if (ThisConfig.codeGenType() != LinkerConfig::DynObj &&
-        ((InputSym->resolveInfo()->outSymbol() &&
-          InputSym->resolveInfo()->outSymbol()->hasFragRef()) ||
-         InputSym->resolveInfo()->isCommon()))
-      InputSym->resolveInfo()->setExportToDyn();
+        ((OutSym && OutSym->hasFragRef()) || InputSymRI->isCommon()))
+      InputSymRI->setExportToDyn();
     return InputSym;
   };
 
@@ -427,15 +427,6 @@ LDSymbol *IRBuilder::addSymbolFromDynObj(
   CanonicalSymbol = AddSymbol(InputSymbolResolveInfo);
   if (!CanonicalSymbol)
     return nullptr;
-  // If the symbol is from dynamic library and we are not making a dynamic
-  // library, we either need to export the symbol by dynamic list or sometimes
-  // we export it since the dynamic library may be referring it defined in
-  // executable, either case it must be in .dynsym
-  LDSymbol *OutSym = InputSym->resolveInfo()->outSymbol();
-  ResolveInfo *RI = InputSym->resolveInfo();
-  if (ThisConfig.codeGenType() != LinkerConfig::DynObj &&
-      ((OutSym && OutSym->hasFragRef()) || RI->isCommon()))
-    RI->setExportToDyn();
   if (SymbolWithoutVerName && CanonicalSymbol)
     VersionedSymbols.push_back({CanonicalSymbol,
                                 SymbolWithoutVerName});
