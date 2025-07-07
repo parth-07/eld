@@ -23,6 +23,7 @@
 #include "eld/Fragment/BuildIDFragment.h"
 #include "eld/Fragment/FillFragment.h"
 #include "eld/Fragment/GNUHashFragment.h"
+#include "eld/Fragment/GNUVerDefFragment.h"
 #include "eld/Fragment/GNUVerNeedFragment.h"
 #include "eld/Fragment/GNUVerSymFragment.h"
 #include "eld/Fragment/RegionFragmentEx.h"
@@ -83,6 +84,7 @@
 #include "llvm/Support/Memory.h"
 #include "llvm/Support/ThreadPool.h"
 #include <algorithm>
+#include <cassert>
 #include <chrono>
 #include <climits>
 #include <cstring>
@@ -687,7 +689,12 @@ bool GNULDBackend::applyVersionScriptScopes() {
     const auto &found = SymbolScopes.find(R);
     if (found != SymbolScopes.end() && !(found->second->isGlobal()) &&
         !R->isUndef() && !R->isDyn())
-      R->clearExportToDyn();
+      {
+        if (config().getPrinter()->traceSymbolVersioning())
+          config().raise(Diag::trace_clear_export_due_to_local_scope)
+              << R->name();
+        R->clearExportToDyn();
+      }
   }
   return true;
 }
@@ -743,8 +750,16 @@ bool GNULDBackend::SetSymbolsToBeExported() {
     return true;
   for (auto &R : m_Module.getSymbols()) {
     if (canSkipSymbolFromExport(R))
-      continue;
+      {
+        if (config().getPrinter()->traceSymbolVersioning())
+          config().raise(Diag::trace_export_symbol_skipped)
+              << R->name() << "filtered";
+        continue;
+      }
     R->setExportToDyn();
+    if (config().getPrinter()->traceSymbolVersioning())
+      config().raise(Diag::trace_export_symbol_marked)
+          << R->name() << "export-all-globals";
   }
   return true;
 }
@@ -771,6 +786,9 @@ void GNULDBackend::sizeDynNamePools() {
 
     // Move all the DynamicSymbols.
     std::move(PartitionBegin, RVect.end(), std::back_inserter(DynamicSymbols));
+    if (config().getPrinter()->traceSymbolVersioning())
+      config().raise(Diag::trace_dynamic_symbols_count)
+          << (DynamicSymbols.size() ? DynamicSymbols.size() - 1 : 0);
   }
 
   {
@@ -817,11 +835,11 @@ void GNULDBackend::sizeDynNamePools() {
     GNUVerSymSection->addFragmentAndUpdateSize(F);
   }
 
+  DiagnosticEngine *DE = config().getDiagEngine();
   if (GNUVerNeedSection) {
     if (DP->traceSymbolVersioning())
       config().raise(Diag::trace_creating_symbol_versioning_fragment) <<
           GNUVerNeedSection->name();
-    DiagnosticEngine *DE = config().getDiagEngine();
     GNUVerNeedFragment *F = make<GNUVerNeedFragment>(GNUVerNeedSection);
     bool is32Bits = config().targets().is32Bits();
     if (is32Bits)
@@ -834,6 +852,24 @@ void GNULDBackend::sizeDynNamePools() {
     GNUVerNeedFrag = F;
     GNUVerNeedSection->setInfo(F->needCount());
   }
+
+  if (GNUVerDefSection) {
+    if (DP->traceSymbolVersioning())
+      config().raise(Diag::trace_creating_symbol_versioning_fragment) <<
+          GNUVerDefSection->name();
+    GNUVerDefFragment *F = make<GNUVerDefFragment>(GNUVerDefSection);
+    bool is32Bits = config().targets().is32Bits();
+    if (is32Bits)
+      F->computeVersionDefs<llvm::object::ELF32LE>(m_Module, getOutputFormat(),
+                                                   *DE);
+    else
+      F->computeVersionDefs<llvm::object::ELF64LE>(m_Module, getOutputFormat(),
+                                                   *DE);
+    GNUVerDefSection->addFragmentAndUpdateSize(F);
+    GNUVerDefFrag = F;
+    GNUVerDefSection->setInfo(F->defCount());
+  }
+
 }
 
 void GNULDBackend::createEhFrameFillerAndHdrSection() {
@@ -5220,14 +5256,41 @@ void GNULDBackend::initSymbolVersioningSections() {
       llvm::ELF::SHT_GNU_verneed, llvm::ELF::SHF_ALLOC,
       /*Align=*/sizeof(uint32_t));
   GNUVerNeedSection->setLink(getOutputFormat()->getDynStrTab());
+
+  // Add .gnu.version_d section creation
+  if (DP->traceSymbolVersioning())
+    config().raise(Diag::trace_creating_symbol_versioning_section)
+        << ".gnu.version_d";
+  GNUVerDefSection = m_Module.createInternalSection(
+      Module::InternalInputType::SymbolVersioning,
+      LDFileFormat::Kind::SymbolVersion, ".gnu.version_d",
+      llvm::ELF::SHT_GNU_verdef, llvm::ELF::SHF_ALLOC,
+      /*Align=*/sizeof(uint32_t));
+  GNUVerDefSection->setLink(getOutputFormat()->getDynStrTab());
 }
 
 void GNULDBackend::assignOutputVersionIDs() const {
   // 0 and 1 are reserved!
-  uint32_t VerID = 2;
-  // FIXME: It does not handle features like export everything.
-  // Exporting symbols that are defined in non-shared files.
-  // Skip the 0-th Null symbol
+  uint32_t NextVerID = 2;
+
+  // Map version node names to reserved output version IDs deterministically.
+  const auto &VSNodes = m_Module.getVersionScriptNodes();
+  std::unordered_map<std::string, uint16_t> VerNameToID;
+  for (const auto &VSNode : VSNodes) {
+    if (!VSNode || VSNode->isAnonymous())
+      continue;
+    VerNameToID[VSNode->getName().str()] = NextVerID++;
+  }
+
+  // First, assign default version to any symbol without an explicit one.
+  for (std::size_t i = 1, e = DynamicSymbols.size(); i < e; ++i) {
+    ResolveInfo *R = DynamicSymbols[i];
+    if (R->getSymbolVersionID() == llvm::ELF::VER_NDX_LOCAL)
+      R->setSymbolVersionID(llvm::ELF::VER_NDX_GLOBAL);
+  }
+
+  // For symbols originating from DSOs, remap their input version IDs to
+  // output IDs in a stable way.
   for (std::size_t i = 1, e = DynamicSymbols.size(); i < e; ++i) {
     ResolveInfo *R = DynamicSymbols[i];
     ELFDynObjectFile *DynObjFile =
@@ -5237,15 +5300,32 @@ void GNULDBackend::assignOutputVersionIDs() const {
     auto InputVerID = R->getSymbolVersionID();
     if (R->isUndef())
       continue;
-    if (InputVerID == 0 || InputVerID == 1) {
-      R->setSymbolVersionID(InputVerID);
+    if (InputVerID == llvm::ELF::VER_NDX_LOCAL ||
+        InputVerID == llvm::ELF::VER_NDX_GLOBAL)
       continue;
-    }
     auto VernAuxID = DynObjFile->getOutputVernAuxID(InputVerID);
     if (VernAuxID == 0) {
-      VernAuxID = VerID++;
+      VernAuxID = NextVerID++;
       DynObjFile->setOutputVernAuxID(InputVerID, VernAuxID);
     }
     R->setSymbolVersionID(VernAuxID);
+  }
+
+  // For output-defined symbols with explicit version suffix foo@VER or foo@@VER,
+  // assign the version index based on version node names.
+  for (std::size_t i = 1, e = DynamicSymbols.size(); i < e; ++i) {
+    ResolveInfo *R = DynamicSymbols[i];
+    if (llvm::isa<ELFDynObjectFile>(R->resolvedOrigin()))
+      continue;
+    std::string FullName = R->getName().str();
+    auto Pos = FullName.find('@');
+    if (Pos == std::string::npos)
+      continue;
+    std::string VerSuffix = FullName.substr(Pos + 1);
+    while (!VerSuffix.empty() && VerSuffix.front() == '@')
+      VerSuffix.erase(VerSuffix.begin());
+    auto It = VerNameToID.find(VerSuffix);
+    if (It != VerNameToID.end())
+      R->setSymbolVersionID(It->second);
   }
 }

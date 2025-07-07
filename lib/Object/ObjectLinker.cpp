@@ -170,8 +170,8 @@ bool ObjectLinker::initStdSections() {
   }
 
   if (ThisConfig.shouldBuildDynamicArtifact() &&
-      ThisBackend.shouldEmitVersioningSections())
-    ThisBackend.initSymbolVersioningSections();
+      getTargetBackend().shouldEmitVersioningSections())
+    getTargetBackend().initSymbolVersioningSections();
 
   // initialize target-dependent sections
   getTargetBackend().initTargetSections(Builder);
@@ -316,9 +316,13 @@ bool ObjectLinker::normalize() {
   return true;
 }
 
+// FIXME: We should parse version script after reading LTO-generated object
+// files.
 bool ObjectLinker::parseVersionScript() {
   if (!ThisConfig.options().hasVersionScript())
     return true;
+  // FIXME: What if there's a version script with only anonymous nodes?
+  getTargetBackend().setShouldEmitVersioningSections(true);
   LayoutInfo *layoutInfo = ThisModule->getLayoutInfo();
   for (const auto &List : ThisConfig.options().getVersionScripts()) {
     Input *VersionScriptInput =
@@ -346,16 +350,13 @@ bool ObjectLinker::parseVersionScript() {
     ThisModule->addVersionScript(VersionScriptReader.getVersionScript());
     for (auto &VersionScriptNode :
          VersionScriptReader.getVersionScript()->getNodes()) {
-      if (!VersionScriptNode->isAnonymous()) {
-        ThisConfig.raise(Diag::unsupported_version_node)
-            << VersionScriptInput->decoratedPath();
-        continue;
-      }
       if (VersionScriptNode->hasDependency()) {
         ThisConfig.raise(Diag::unsupported_dependent_node)
+            << VersionScriptNode->getName()
             << VersionScriptInput->decoratedPath();
-        continue;
       }
+      // FIXME: Why did we reach here at all if the version script parsing failed?
+      // Shouldn't we have exited before reaching here?
       if (VersionScriptNode->hasError()) {
         ThisConfig.raise(Diag::error_parsing_version_script)
             << VersionScriptInput->decoratedPath();
@@ -372,6 +373,9 @@ bool ObjectLinker::parseVersionScript() {
         for (auto *Sym : VersionScriptNode->getGlobalBlock()->getSymbols()) {
           if (Sym->getSymbolPattern()->matched(*R)) {
             getTargetBackend().addSymbolScope(R, Sym);
+            if (ThisConfig.getPrinter()->traceSymbolVersioning())
+              ThisConfig.raise(Diag::trace_version_script_matched_scope)
+                  << "global" << R->name();
           } // end Symbol Match
         } // end Symbols
       } // end Global
@@ -381,6 +385,9 @@ bool ObjectLinker::parseVersionScript() {
         for (auto *Sym : VersionScriptNode->getLocalBlock()->getSymbols()) {
           if (Sym->getSymbolPattern()->matched(*R)) {
             getTargetBackend().addSymbolScope(R, Sym);
+            if (ThisConfig.getPrinter()->traceSymbolVersioning())
+              ThisConfig.raise(Diag::trace_version_script_matched_scope)
+                  << "local" << R->name();
           } // end Symbol Match
         } // end Symbols
       } // end Local
@@ -3628,7 +3635,7 @@ bool ObjectLinker::readAndProcessInput(Input *Input, bool IsPostLto) {
     ELFDynObjectFile *DynObjFile =
         llvm::cast<ELFDynObjectFile>(CurInput);
     if (DynObjFile->hasSymbolVersioningInfo())
-      ThisBackend.setShouldEmitVersioningSections(true);
+      getTargetBackend().setShouldEmitVersioningSections(true);
     ThisModule->getDynLibraryList().push_back(CurInput);
   } else if (CurInput->getKind() == InputFile::GNUArchiveFileKind) {
     eld::RegisterTimer T("Read Archive Files", "Read all Input files",

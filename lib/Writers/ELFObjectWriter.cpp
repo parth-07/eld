@@ -16,6 +16,7 @@
 #include "eld/Core/Module.h"
 #include "eld/Diagnostics/DiagnosticEngine.h"
 #include "eld/Fragment/FillFragment.h"
+#include "eld/Fragment/GNUVerDefFragment.h"
 #include "eld/Fragment/GNUVerNeedFragment.h"
 #include "eld/Fragment/RegionFragment.h"
 #include "eld/Fragment/StringFragment.h"
@@ -694,6 +695,8 @@ uint64_t ELFObjectWriter::getSectEntrySize(ELFSection *CurSection) const {
     return CurSection->getEntSize();
   if (CurSection->getType() == llvm::ELF::SHT_GNU_versym)
     return CurSection->getEntSize();
+  if (CurSection->getType() == llvm::ELF::SHT_GNU_verdef)
+    return CurSection->getEntSize();
   return 0x0;
 }
 
@@ -712,12 +715,15 @@ uint64_t ELFObjectWriter::getSectLink(const ELFSection *S) const {
     Link = ThisModule.getBackend().getOutputFormat()->getDynStrTab();
   if (llvm::ELF::SHT_HASH == S->getType() ||
       llvm::ELF::SHT_GNU_HASH == S->getType())
-    Link = target().getOutputFormat()->getDynSymTab();
+    Link = ThisModule.getBackend().getOutputFormat()->getDynSymTab();
   if (llvm::ELF::SHT_GNU_versym == S->getType())
-    Link = target().getOutputFormat()->getDynSymTab();
+    Link = ThisModule.getBackend().getOutputFormat()->getDynSymTab();
   if (llvm::ELF::SHT_GNU_verneed == S->getType())
-    Link = target().getOutputFormat()->getDynStrTab();
-  if (Config.isLinkPartial() && llvm::ELF::SHF_LINK_ORDER & S->getFlags())
+    Link = ThisModule.getBackend().getOutputFormat()->getDynStrTab();
+  if (llvm::ELF::SHT_GNU_verdef == S->getType())
+    Link = ThisModule.getBackend().getOutputFormat()->getDynStrTab();
+  if (ThisModule.getConfig().isLinkPartial() &&
+      llvm::ELF::SHF_LINK_ORDER & S->getFlags())
     return S->getLink()->getOutputSection()->getSection()->getIndex();
   if (S->isRelocationSection()) {
     if (S->getKind() != LDFileFormat::DynamicRelocation)
@@ -742,7 +748,10 @@ uint64_t ELFObjectWriter::getSectInfo(ELFSection *CurSection) const {
       llvm::ELF::SHT_DYNSYM == CurSection->getType())
     return CurSection->getInfo();
   if (llvm::ELF::SHT_GNU_verneed == CurSection->getType()) {
-    return Backend.getGNUVerNeedFragment()->needCount();
+    return ThisModule.getBackend().getGNUVerNeedFragment()->needCount();
+  }
+  if (llvm::ELF::SHT_GNU_verdef == CurSection->getType()) {
+    return ThisModule.getBackend().getGNUVerDefFragment()->defCount();
   }
   if (CurSection->isRelocationSection()) {
     auto *InfoLink = llvm::dyn_cast_or_null<ELFSection>(CurSection->getLink());

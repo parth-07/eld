@@ -15,7 +15,7 @@ eld::Expected<void> GNUVerSymFragment::emit(MemoryRegion &MR, Module &M) {
   uint8_t *Buf = MR.begin() + getOffset(M.getConfig().getDiagEngine());
   for (const auto *DynSym : DynamicSymbols) {
     uint16_t VerNum = DynSym->getSymbolVersionID();
-    llvm::errs() << "[GNUVerSymFragment::emit] Setting VerNum: " << VerNum << "\n";
+    // Note: default versions are not hidden; other versions may set VERSYM_HIDDEN.
     *reinterpret_cast<uint16_t *>(Buf) = VerNum;
     Buf += 2;
   }

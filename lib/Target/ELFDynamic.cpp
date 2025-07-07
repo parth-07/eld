@@ -243,6 +243,11 @@ void ELFDynamic::reserveEntries(ELFFileFormat &pFormat, Module &pModule) {
     reserveOne(llvm::ELF::DT_VERNEEDNUM);
   }
 
+  if (m_Backend.getGNUVerDefSection()) {
+    reserveOne(llvm::ELF::DT_VERDEF);
+    reserveOne(llvm::ELF::DT_VERDEFNUM);
+  }
+
   reserveOne(llvm::ELF::DT_DEBUG); // for Debugging
   reserveOne(llvm::ELF::DT_NULL);  // for DT_NULL
 }
@@ -417,6 +422,12 @@ void ELFDynamic::applyEntries(const ELFFileFormat &pFormat,
     applyOne(llvm::ELF::DT_VERNEEDNUM, F->needCount());
   }
 
+  if (ELFSection *S = m_Backend.getGNUVerDefSection()) {
+    applyOne(llvm::ELF::DT_VERDEF, S->addr());
+    // Def count equals section sh_info
+    applyOne(llvm::ELF::DT_VERDEFNUM, S->getInfo());
+  }
+
   if (!m_Config.options().isCompactDyn())
     applyOne(llvm::ELF::DT_DEBUG, 0x0); // for DT_DEBUG
 
@@ -452,4 +463,3 @@ void ELFDynamic::emit(const ELFSection &pSection, MemoryRegion &pRegion) const {
 void ELFDynamic::applySoname(uint64_t pStrTabIdx) {
   applyOne(llvm::ELF::DT_SONAME, pStrTabIdx); // DT_SONAME
 }
-
