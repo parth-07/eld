@@ -50,6 +50,7 @@ class ELFFileFormat;
 class ELFObjectFile;
 class ELFObjectFileFormat;
 class ELFSegmentFactory;
+class GNUVerDefFragment;
 class GNUVerNeedFragment;
 class TargetInfo;
 class Layout;
@@ -1018,6 +1019,7 @@ private:
 
   void assignOutputVersionIDs() const;
 
+  // void
 protected:
   Module &m_Module;
 
@@ -1153,6 +1155,8 @@ protected:
   ELFSection *GNUVerSymSection = nullptr;
   ELFSection *GNUVerNeedSection = nullptr;
   GNUVerNeedFragment *GNUVerNeedFrag = nullptr;
+  ELFSection *GNUVerDefSection = nullptr;
+  GNUVerDefFragment *GNUVerDefFrag = nullptr;
 };
 
 } // namespace eld

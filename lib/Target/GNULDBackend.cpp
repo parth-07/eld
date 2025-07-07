@@ -23,6 +23,7 @@
 #include "eld/Fragment/BuildIDFragment.h"
 #include "eld/Fragment/FillFragment.h"
 #include "eld/Fragment/GNUHashFragment.h"
+#include "eld/Fragment/GNUVerDefFragment.h"
 #include "eld/Fragment/GNUVerNeedFragment.h"
 #include "eld/Fragment/GNUVerSymFragment.h"
 #include "eld/Fragment/RegionFragmentEx.h"
@@ -83,6 +84,7 @@
 #include "llvm/Support/Memory.h"
 #include "llvm/Support/ThreadPool.h"
 #include <algorithm>
+#include <cassert>
 #include <chrono>
 #include <climits>
 #include <cstring>
@@ -817,11 +819,11 @@ void GNULDBackend::sizeDynNamePools() {
     GNUVerSymSection->addFragmentAndUpdateSize(F);
   }
 
+  DiagnosticEngine *DE = config().getDiagEngine();
   if (GNUVerNeedSection) {
     if (DP->traceSymbolVersioning())
       config().raise(Diag::trace_creating_symbol_versioning_fragment) <<
           GNUVerNeedSection->name();
-    DiagnosticEngine *DE = config().getDiagEngine();
     GNUVerNeedFragment *F = make<GNUVerNeedFragment>(GNUVerNeedSection);
     bool is32Bits = config().targets().is32Bits();
     if (is32Bits)
@@ -834,6 +836,25 @@ void GNULDBackend::sizeDynNamePools() {
     GNUVerNeedFrag = F;
     GNUVerNeedSection->setInfo(F->needCount());
   }
+
+  if (GNUVerDefSection) {
+    if (DP->traceSymbolVersioning())
+      config().raise(Diag::trace_creating_symbol_versioning_fragment) <<
+          GNUVerDefSection->name();
+    GNUVerDefFragment *F = make<GNUVerDefFragment>(GNUVerDefSection);
+    // bool is32Bits = config().targets().is32Bits();
+    // if (is32Bits)
+    //   F->computeVersionDefs<llvm::object::ELF32LE>(m_Module.getDynLibraryList(),
+    //                                               *DE);
+    // else
+    //   F->computeVersionDefs<llvm::object::ELF64LE>(m_Module.getDynLibraryList(),
+    //                                               *DE);
+    GNUVerDefSection->addFragmentAndUpdateSize(F);
+    GNUVerDefFrag = F;
+    // FIXME!!
+    // GNUVerDefSection->setInfo(F->defCount());
+  }
+
 }
 
 void GNULDBackend::createEhFrameFillerAndHdrSection() {
@@ -5220,14 +5241,42 @@ void GNULDBackend::initSymbolVersioningSections() {
       llvm::ELF::SHT_GNU_verneed, llvm::ELF::SHF_ALLOC,
       /*Align=*/sizeof(uint32_t));
   GNUVerNeedSection->setLink(getOutputFormat()->getDynStrTab());
+
+  // Add .gnu.version_d section creation
+  if (DP->traceSymbolVersioning())
+    config().raise(Diag::trace_creating_symbol_versioning_section)
+        << ".gnu.version_d";
+  GNUVerDefSection = m_Module.createInternalSection(
+      Module::InternalInputType::SymbolVersioning,
+      LDFileFormat::Kind::SymbolVersion, ".gnu.version_d",
+      llvm::ELF::SHT_GNU_verdef, llvm::ELF::SHF_ALLOC,
+      /*Align=*/sizeof(uint32_t));
+  GNUVerDefSection->setLink(getOutputFormat()->getDynStrTab());
 }
 
 void GNULDBackend::assignOutputVersionIDs() const {
   // 0 and 1 are reserved!
   uint32_t VerID = 2;
+
+  const auto &VSNodes = m_Module.getVersionScriptNodes();
+  auto &NP = m_Module.getNamePool();
+  for (const auto &VSNode : VSNodes) {
+    // FIXME: Support extern language!
+    const auto &GlobalBlock = VSNode->getGlobalBlock();
+    for (const auto &VerSym : GlobalBlock->getSymbols()) {
+      const auto *VerSymPatternScriptSym = VerSym->getSymbolPattern();
+      assert(VerSymPatternScriptSym && "Must not be null!");
+      llvm::StringRef VerSymPattern = VerSymPatternScriptSym->name();
+      ResolveInfo *RI = NP.findInfo(VerSymPattern.str());
+      if (!RI->isUndef() && !RI->isDyn())
+        RI->setSymbolVersionID(VerID);
+    }
+    ++VerID;
+  }
+
   // FIXME: It does not handle features like export everything.
   // Exporting symbols that are defined in non-shared files.
-  // Skip the 0-th Null symbol
+  // Skip the 0-th Null symbol.
   for (std::size_t i = 1, e = DynamicSymbols.size(); i < e; ++i) {
     ResolveInfo *R = DynamicSymbols[i];
     ELFDynObjectFile *DynObjFile =
@@ -5238,7 +5287,7 @@ void GNULDBackend::assignOutputVersionIDs() const {
     if (R->isUndef())
       continue;
     if (InputVerID == 0 || InputVerID == 1) {
-      R->setSymbolVersionID(InputVerID);
+      // R->setSymbolVersionID(InputVerID);
       continue;
     }
     auto VernAuxID = DynObjFile->getOutputVernAuxID(InputVerID);
