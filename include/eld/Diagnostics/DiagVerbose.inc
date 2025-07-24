@@ -167,3 +167,9 @@ DIAG(verbose_loaded_plugin_config, DiagnosticEngine::Verbose,
      "Initialized plugin config for %0")
 DIAG(verbose_infer_target, DiagnosticEngine::Verbose,
      "Inferred target : %0")
+DIAG(verbose_performing_layout_iteration, DiagnosticEngine::Verbose,
+     "Performing layout iteration %0")
+DIAG(verbose_eval_pending_assignments, DiagnosticEngine::Verbose,
+     "Evaluating pending assignments")
+DIAG(verbose_reset_tracked_assignment, DiagnosticEngine::Verbose,
+     "Resetting tracked assignments")

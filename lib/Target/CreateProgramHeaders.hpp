@@ -168,9 +168,14 @@ bool GNULDBackend::createProgramHdrs() {
     noLoadSections.clear();
     resetNewSectionsAddedToLayout();
     enable_RELRO = true;
+    resetTrackedAssignments();
+    restoreLSSymbolsUsingSnapshot();
+    restorePartiallyEvalAssignsAndSymbolsUsingSnapshot();
   };
 
   reset_state();
+
+  llvm::SaveAndRestore saved(TrackAssignments, true);
 
   if (load_ehdr)
     setNeedEhdr();
@@ -686,6 +691,8 @@ bool GNULDBackend::createProgramHdrs() {
       }
     }
     ++out;
+    // if (out == outEnd && requiresRelayout)
+    //   reset_state();
   }
 
   if (dynamic && dynamic->size()) {

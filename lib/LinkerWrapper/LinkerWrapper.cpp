@@ -213,7 +213,9 @@ eld::Expected<void> LinkerWrapper::finishAssignOutputSections() {
 
 eld::Expected<void> LinkerWrapper::reassignVirtualAddresses() {
   CHECK_LINK_STATE(*this, "CreatingSegments");
-  m_Module.getBackend().createScriptProgramHdrs();
+  auto &Backend = m_Module.getBackend();
+  Backend.createScriptProgramHdrs();
+  Backend.evaluatePendingAssignments();
   return {};
 }
 

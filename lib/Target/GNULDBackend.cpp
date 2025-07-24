@@ -78,6 +78,7 @@
 #include "llvm/Support/BinaryStreamWriter.h"
 #include "llvm/Support/FileOutputBuffer.h"
 #include "llvm/Support/Memory.h"
+#include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/ThreadPool.h"
 #include <algorithm>
 #include <chrono>
@@ -1718,7 +1719,8 @@ bool GNULDBackend::InsertAtSectionToEnd(ELFSection *OutSection,
     Assignment *assign = (*it);
     if (shouldskipAssert(assign))
       continue;
-    (*it)->assign(m_Module, OutSection);
+    ASSERT(assign != nullptr, "assign must not be null!");
+    evaluateAssignmentAndTrackPartiallyEvalAssignments(*assign, OutSection);
     if (OutSection->isAlloc())
       NewOffset = dotSymbol->value() - OutSection->addr();
   }
@@ -1927,7 +1929,8 @@ void GNULDBackend::evaluateAssignments(OutputSectionEntry *out,
       if (padding.startOffset == -1)
         padding.startOffset = offset;
       uint64_t previousDotValue = dotSymbol->value();
-      (*it)->assign(m_Module, OutSection);
+      ASSERT(assign != nullptr, "assign must not be null!");
+      evaluateAssignmentAndTrackPartiallyEvalAssignments(*assign, OutSection);
       offset = dotSymbol->value() - OutSection->addr();
       // Check for backward movement of dot symbol in the current output section
       if ((dotSymbol->value() < previousDotValue) &&
@@ -2076,6 +2079,7 @@ void GNULDBackend::evaluateAssignmentsAtEndOfOutputSection(
                                         ie = out->sectionendsymEnd();
        it != ie; ++it) {
     Assignment *assign = (*it);
+    ASSERT(assign != nullptr, "assign must not be null!");
     // We do not need to evaluate PROVIDE expressions for PROVIDE
     // symbols that are not being used in the link.
     if (assign->isProvideOrProvideHidden() && !isProvideSymBeingUsed(assign))
@@ -2090,7 +2094,7 @@ void GNULDBackend::evaluateAssignmentsAtEndOfOutputSection(
       }
       continue;
     }
-    (*it)->assign(m_Module, nullptr);
+    evaluateAssignmentAndTrackPartiallyEvalAssignments(*assign, /*S=*/nullptr);
   }
 }
 
@@ -3059,7 +3063,7 @@ bool GNULDBackend::layout() {
 
   // Clear the section table so that real sections can be inserted properly.
   m_Module.clearOutputSections();
-
+  resetPartiallyEvalAssignsAndSymbols();
   // Evaluate defsym assignments.
   {
     eld::RegisterTimer T("Evaluate Script Assignments", "Establish Layout",
@@ -3084,6 +3088,7 @@ bool GNULDBackend::layout() {
     return false;
   }
 
+  // FIXME: Why evaluate script assignments again?
   // Evaluate all assignments.
   {
     eld::RegisterTimer T("Evaluate Script Assignments and Asserts",
@@ -3926,6 +3931,9 @@ bool GNULDBackend::maySkipRelocProcessing(Relocation *pReloc) const {
 }
 
 bool GNULDBackend::relax() {
+  takeLSSymbolsSnapshot();
+  takePartiallyEvalAssignsAndSymbolsSnapshot();
+
   bool finished = false;
   int iteration = 0;
 
@@ -3935,6 +3943,7 @@ bool GNULDBackend::relax() {
 
   while (!finished) {
     auto start = std::chrono::steady_clock::now();
+    config().raise(Diag::verbose_performing_layout_iteration) << iteration;
     {
       eld::RegisterTimer T("Assign Address", "Establish Layout",
                            m_Module.getConfig().options().printTimingStats());
@@ -3953,6 +3962,9 @@ bool GNULDBackend::relax() {
         config().raise(Diag::function_has_error) << __PRETTY_FUNCTION__;
       return false;
     }
+
+    evaluatePendingAssignments();
+
     {
       eld::RegisterTimer T("Create Trampolines", "Establish Layout",
                            m_Module.getConfig().options().printTimingStats());
@@ -3998,6 +4010,7 @@ MemoryRegion GNULDBackend::getFileOutputRegion(llvm::FileOutputBuffer &pBuffer,
 
 void GNULDBackend::evaluateScriptAssignments(bool evaluateAsserts) {
   for (auto &assign : m_Module.getScript().assignments()) {
+    ASSERT(assign != nullptr, "assign must not be null!");
     if (assign->level() != Assignment::OUTSIDE_SECTIONS)
       continue;
     if (shouldskipAssert(assign)) {
@@ -4012,12 +4025,13 @@ void GNULDBackend::evaluateScriptAssignments(bool evaluateAsserts) {
     }
     if (assign->isProvideOrProvideHidden() && !isProvideSymBeingUsed(assign))
       continue;
-    assign->assign(m_Module, nullptr);
+    evaluateAssignmentAndTrackPartiallyEvalAssignments(*assign, /*S=*/nullptr);
   }
 }
 
 void GNULDBackend::evaluateAsserts() {
   for (auto &a : m_Module.getScript().assignments()) {
+    ASSERT(a != nullptr, "a must not be null!");
     if (a->type() != Assignment::ASSERT)
       continue;
     if (a->hasDot()) {
@@ -4035,7 +4049,7 @@ void GNULDBackend::evaluateAsserts() {
       a->dumpMap(SS, false, false);
       config().raise(Diag::executing_assert_after_layout) << SS.str();
     }
-    a->assign(m_Module, nullptr);
+    evaluateAssignmentAndTrackPartiallyEvalAssignments(*a, /*S=*/nullptr);
   }
 }
 
@@ -4570,6 +4584,7 @@ void GNULDBackend::doPostLayout() {
     eld::RegisterTimer T("Create Script Program Headers", "Establish Layout",
                          m_Module.getConfig().options().printTimingStats());
     createScriptProgramHdrs();
+    evaluatePendingAssignments();
   }
   if (!config().getDiagEngine()->diagnose()) {
     if (m_Module.getPrinter()->isVerbose())
@@ -5159,4 +5174,72 @@ bool GNULDBackend::setupTLS() {
   if (firstTLS)
     firstTLS->setAddrAlign(MaxAlignment);
   return seenTLS;
+}
+
+void GNULDBackend::evaluateAssignmentAndTrackPartiallyEvalAssignments(
+    Assignment &A, const ELFSection *S) {
+  A.assign(m_Module, S, /*EvaluatePendingOnly=*/false);
+  if (A.getExpression()->hasPendingEvaluation())
+    PartiallyEvaluatedAssignments.push_back({&A, S});
+  if (TrackAssignments)
+    TrackedAssignments.push_back(&A);
+}
+
+void GNULDBackend::evaluatePendingAssignments() {
+  config().raise(Diag::verbose_eval_pending_assignments);
+  const std::size_t MaxIterations = 10;
+  for (std::size_t i = 0; i < MaxIterations; ++i) {
+    std::vector<std::pair<Assignment *, const ELFSection *>>
+        NewPartiallyEvalAssigns;
+    for (auto &P : PartiallyEvaluatedAssignments) {
+      auto *A = P.first;
+      auto *S = P.second;
+      A->assign(m_Module, S, /*EvaluatePendingOnly=*/true);
+      if (TrackAssignments)
+        TrackedAssignments.push_back(A);
+      if (A->getExpression()->hasPendingEvaluation())
+        NewPartiallyEvalAssigns.push_back({A, S});
+    }
+    if (!(NewPartiallyEvalAssigns.size() <
+          PartiallyEvaluatedAssignments.size()))
+      break;
+    PartiallyEvaluatedAssignments = NewPartiallyEvalAssigns;
+  }
+  PartiallyEvaluatedAssignments.clear();
+  resetPartiallyEvalAssignsAndSymbols();
+}
+
+void GNULDBackend::resetTrackedAssignments() {
+  config().raise(Diag::verbose_reset_tracked_assignment);
+  for (auto *A : TrackedAssignments) {
+    ASSERT(A, "A must not be null!");
+    A->reset();
+  }
+  TrackedAssignments.clear();
+}
+
+void GNULDBackend::takeLSSymbolsSnapshot() {
+  LSSymbolsSnapshot.clear();
+  auto &NP = m_Module.getNamePool();
+  auto &GlobalSyms = NP.getGlobals();
+  for (auto it = GlobalSyms.begin(), e = GlobalSyms.end(); it != e; ++it) {
+    ResolveInfo *RI = it->getValue();
+    ASSERT(RI, "RI must not be null!");
+    LDSymbol *Sym = RI->outSymbol();
+    if (!Sym || !Sym->scriptDefined())
+      continue;
+    LSSymbolsSnapshot.push_back(
+        {RI, RI->value(), Sym->scriptValueDefined()});
+  }
+}
+
+void GNULDBackend::restoreLSSymbolsUsingSnapshot() {
+  for (auto &LSSymInfo : LSSymbolsSnapshot) {
+    ResolveInfo *RI = LSSymInfo.RI;
+    ASSERT(RI, "RI must not be null!");
+    LDSymbol *Sym = RI->outSymbol();
+    ASSERT(Sym, "Sym must not be null!");
+    Sym->setValue(LSSymInfo.Value);
+    Sym->setScriptValueDefined(LSSymInfo.HasScriptValue);
+  }
 }
