@@ -16,7 +16,7 @@ RuleContainer::RuleContainer(SectionMap *Parent, std::string PName,
                              InputSectDesc::Policy PPolicy)
     : MPolicy(PPolicy), MDirty(false), MFrag(nullptr), MDesc(nullptr),
       MMatchCount(0), MMatchTime(0), MNextRule(nullptr) {
-  WildcardPattern *P1 = make<WildcardPattern>("*");
+  WildcardPattern *P1 = WildcardPattern::create("*").value();
   Parent->getLinkerScript().registerWildCardPattern(P1);
   MSpec.WildcardFilePattern = P1;
   MSpec.InputArchiveMember = nullptr;
@@ -24,7 +24,7 @@ RuleContainer::RuleContainer(SectionMap *Parent, std::string PName,
   MSpec.ExcludeFilesRule = nullptr;
   StringList *Sections = make<StringList>();
   WildcardPattern *P2 =
-      make<WildcardPattern>(Parent->getLinkerScript().saveString(PName));
+      WildcardPattern::create(Parent->getLinkerScript().saveString(PName)).value();
   Parent->getLinkerScript().registerWildCardPattern(P2);
   Sections->pushBack(P2);
 

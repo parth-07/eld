@@ -16,6 +16,7 @@
 #include "eld/Script/WildcardPattern.h"
 #include "eld/Script/ExcludeFiles.h"
 #include "eld/Support/MsgHandling.h"
+#include "eld/PluginAPI/DiagnosticEntry.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/Support/raw_ostream.h"
 #include <string>
@@ -85,4 +86,30 @@ void WildcardPattern::createGlobPattern(llvm::StringRef Pattern) {
   MPattern = std::move(*E);
   if (!hasGlob())
     setHash(llvm::hash_combine(Pattern));
+}
+
+Expected<WildcardPattern *>
+WildcardPattern::create(llvm::StringRef Pattern, SortPolicy PPolicy,
+                        ExcludeFiles *PExcludeFileList) {
+  auto E = llvm::GlobPattern::create(Pattern);
+  if (!E) {
+    (void)E.takeError();
+    return std::make_unique<plugin::DiagnosticEntry>(
+        plugin::DiagnosticEntry(Diag::error_invalid_glob_pattern,
+                                {Pattern.str()}));
+  }
+  return make<WildcardPattern>(Pattern, PPolicy, PExcludeFileList);
+}
+
+Expected<WildcardPattern *>
+WildcardPattern::create(StrToken *S, SortPolicy PPolicy,
+                        ExcludeFiles *PExcludeFileList) {
+  auto E = llvm::GlobPattern::create(S->name());
+  if (!E) {
+    (void)E.takeError();
+    return std::make_unique<plugin::DiagnosticEntry>(
+        plugin::DiagnosticEntry(Diag::error_invalid_glob_pattern,
+                                {S->name()}));
+  }
+  return make<WildcardPattern>(S, PPolicy, PExcludeFileList);
 }

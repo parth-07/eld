@@ -375,8 +375,8 @@ void ScriptFile::leaveOutputSectDesc(const OutputSectDesc::Epilog &PEpilog) {
   StringList *StringList = createStringList();
   DefaultSpec.WildcardFilePattern =
       createWildCardPattern(createParserStr("*", 1));
-  StringList->pushBack(createWildCardPattern(
-      eld::make<StrToken>(OutputSectionDescription->name())));
+  StringList->pushBack(
+      createWildCardPattern(eld::make<StrToken>(OutputSectionDescription->name())));
   DefaultSpec.WildcardSectionPattern = StringList;
   DefaultSpec.InputArchiveMember = nullptr;
   DefaultSpec.InputIsArchive = 0;
@@ -508,7 +508,12 @@ ScriptFile::createWildCardPattern(StrToken *S, WildcardPattern::SortPolicy P,
   auto F = ScriptWildcardPatternMap.find(S->name());
   if (F != ScriptWildcardPatternMap.end())
     return F->second;
-  WildcardPattern *Pat = make<WildcardPattern>(S, P, E);
+  auto ExpPat = WildcardPattern::create(S, P, E);
+  if (!ExpPat) {
+    ThisModule.getConfig().raiseDiagEntry(std::move(ExpPat.error()));
+    return nullptr;
+  }
+  WildcardPattern *Pat = ExpPat.value();
   ThisModule.getScript().registerWildCardPattern(Pat);
   return Pat;
 }

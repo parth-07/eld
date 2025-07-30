@@ -1,0 +1,9 @@
+#---InvalidGlobPattern.test--------------------- Executable,LS ------------------#
+#BEGIN_COMMENT
+# This test checks that an invalid glob pattern errors out instead of asserting.
+#END_COMMENT
+RUN: %clang %clangopts -o %t1.o %p/Inputs/1.c -c -ffunction-sections
+RUN: %not %link %linkopts -o %t.out %t1.o -T %p/Inputs/script.t 2>&1 | %filecheck %s --check-prefix=ERR
+
+#ERR: Error: {{.*}}script.t: Pattern cannot be created for \*\(\[
+#ERR: Fatal: Linking had errors.

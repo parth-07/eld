@@ -68,6 +68,8 @@ DIAG(error_linker_script, DiagnosticEngine::Error, "%0")
 DIAG(note_linker_script, DiagnosticEngine::Note, "%0")
 DIAG(reading_dynamic_list, DiagnosticEngine::Verbose, "Dynamic List[%0] : %1")
 DIAG(reading_extern_list, DiagnosticEngine::Verbose, "Extern List[%0] : %1")
+DIAG(error_invalid_glob_pattern, DiagnosticEngine::Error,
+     "Invalid glob pattern '%0'")
 DIAG(error_parsing_version_script, DiagnosticEngine::Error, "Error parsing version script %0")
 DIAG(fatal_divide_by_zero, DiagnosticEngine::Fatal,
      "%0: division by zero in expression %1")

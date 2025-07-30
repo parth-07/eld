@@ -3706,8 +3706,14 @@ bool ObjectLinker::parseIncludeOrExcludeLTOfiles() {
       std::pair<StringRef, StringRef> LineAndRest = Buffer.split('\n');
       StringRef Line = LineAndRest.first.trim();
       // Comment lines starts with #
-      if (!Line.empty() || !Line.starts_with("#"))
-        LTOPatternList.emplace_back(make<WildcardPattern>(Line.str()));
+      if (!Line.empty() || !Line.starts_with("#")) {
+        auto ExpPat = WildcardPattern::create(Line.str());
+        if (!ExpPat) {
+          ThisConfig.raiseDiagEntry(std::move(ExpPat.error()));
+          return false;
+        }
+        LTOPatternList.emplace_back(ExpPat.value());
+      }
       Buffer = LineAndRest.second;
     }
   }

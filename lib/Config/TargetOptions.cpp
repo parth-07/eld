@@ -43,7 +43,7 @@ void TargetOptions::setTargetCPU(const std::string &PCpu) { TargetCPU = PCpu; }
 
 void TargetOptions::addEntrySection(LinkerScript &PScript,
                                     llvm::StringRef PPattern) {
-  WildcardPattern *Pat = make<WildcardPattern>(PPattern);
+  WildcardPattern *Pat = WildcardPattern::create(PPattern).value();
   EntrySections.emplace_back(Pat);
   PScript.registerWildCardPattern(Pat);
 }
