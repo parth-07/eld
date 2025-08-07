@@ -35,6 +35,15 @@ public:
     Expr
   };
 
+  struct Token {
+    llvm::StringRef str;
+    explicit operator bool() const { return !str.empty(); }
+    operator llvm::StringRef() const { return str; }
+    bool operator==(llvm::StringRef RHS) const {
+      return str == RHS;
+    }
+  };
+
   explicit ScriptLexer(eld::LinkerConfig &Config, ScriptFile &ScriptFile);
 
   // Set error as needed
@@ -78,6 +87,8 @@ public:
   void expect(enum LexState LState, llvm::StringRef ExpectedTok);
 
   void expectButContinue(llvm::StringRef Expect);
+
+  Token till(llvm::StringRef tok);
 
   // Consume label
   bool consumeLabel(llvm::StringRef Tok);

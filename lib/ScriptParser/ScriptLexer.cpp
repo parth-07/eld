@@ -383,3 +383,15 @@ size_t ScriptLexer::computeLineNumber(llvm::StringRef tok) {
       llvm::StringRef(CurBuf.Begin, tok.data() - CurBuf.Begin).count('\n');
   return LineNumber + 1;
 }
+
+
+ScriptLexer::Token ScriptLexer::till(llvm::StringRef Tok) {
+  llvm::StringRef S = next();
+  if (S == Tok)
+    return {};
+  if (!atEOF())
+    return {S};
+  PrevTok = {};
+  setError("unexpected EOF");
+  return {};
+}

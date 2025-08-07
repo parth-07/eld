@@ -531,15 +531,13 @@ void ScriptParser::readProvideHidden(StringRef Tok) {
 void ScriptParser::readSections() {
   expect("{");
   ThisScriptFile.enterSectionsCmd();
-  while (peek() != "}" && !atEOF()) {
-    llvm::StringRef Tok = next();
+  while (auto Tok = till("}")) {
     if (readInclude(Tok)) {
     } else if (readAssignment(Tok)) {
     } else {
       readOutputSectionDescription(Tok);
     }
   }
-  expect("}");
   ThisScriptFile.leaveSectionsCmd();
 }
 
@@ -558,14 +556,13 @@ Expression *ScriptParser::readAssert() {
 void ScriptParser::readInputOrGroup(bool IsInputCmd) {
   expect("(");
   ThisScriptFile.createStringList();
-  while (peek() != ")" && !atEOF()) {
-    if (consume("AS_NEEDED")) {
+  while (auto Tok = till(")")) {
+    if (Tok == "AS_NEEDED") {
       readAsNeeded();
     } else
-      addFile(unquote(next()));
+      addFile(unquote(Tok));
     consume(",");
   }
-  expect(")");
   StringList *Inputs = ThisScriptFile.getCurrentStringList();
   if (IsInputCmd)
     ThisScriptFile.addInputCmd(
@@ -580,11 +577,10 @@ void ScriptParser::readInputOrGroup(bool IsInputCmd) {
 void ScriptParser::readAsNeeded() {
   expect("(");
   ThisScriptFile.setAsNeeded(true);
-  while (peek() != ")" && !atEOF()) {
-    addFile(unquote(next()));
+  while (auto Tok = till(")")) {
+    addFile(unquote(Tok));
     consume(",");
   }
-  expect(")");
   ThisScriptFile.setAsNeeded(false);
 }
 
@@ -611,8 +607,7 @@ void ScriptParser::readOutputSectionDescription(llvm::StringRef Tok) {
   OutputSectDesc::Prolog Prologue = readOutputSectDescPrologue();
   ThisScriptFile.enterOutputSectDesc(OutSectName.str(), Prologue);
   expect("{");
-  while (peek() != "}" && !atEOF()) {
-    StringRef Tok = next();
+  while (auto Tok = till("}")) {
     if (Tok == ";") {
       // Empty commands are allowed. Do nothing.
     } else if (Tok == "FILL") {
@@ -624,7 +619,6 @@ void ScriptParser::readOutputSectionDescription(llvm::StringRef Tok) {
       readInputSectionDescription(Tok);
     }
   }
-  expect("}");
   OutputSectDesc::Epilog Epilogue = readOutputSectDescEpilogue();
   ThisScriptFile.leavingOutputSectDesc();
   ThisScriptFile.leaveOutputSectDesc(Epilogue);
@@ -797,35 +791,32 @@ ScriptParser::readOutputSectPermissions(llvm::StringRef Tok) {
 void ScriptParser::readPhdrs() {
   expect("{");
   ThisScriptFile.enterPhdrsCmd();
-  while (peek() != "}" && !atEOF()) {
+  while (auto NameTok = till("}")) {
     PhdrSpec PhdrSpec;
     PhdrSpec.init();
-    llvm::StringRef NameTok = next();
     PhdrSpec.Name =
-        ThisScriptFile.createParserStr(NameTok.data(), NameTok.size());
+        ThisScriptFile.createParserStr(NameTok);
     llvm::StringRef TypeTok = next();
     auto OptPhdrType = readPhdrType(TypeTok);
     if (OptPhdrType.has_value())
       PhdrSpec.ThisType = OptPhdrType.value();
     else
       setError("invalid program header type: " + TypeTok);
-    while (peek() != ";" && !atEOF()) {
-      if (consume("FILEHDR"))
+    while (auto Tok = till(";")) {
+      if (Tok == "FILEHDR")
         PhdrSpec.ScriptHasFileHdr = true;
-      else if (consume("PHDRS"))
+      else if (Tok == "PHDRS")
         PhdrSpec.ScriptHasPhdr = true;
-      else if (consume("AT"))
+      else if (Tok == "AT")
         PhdrSpec.FixedAddress = readParenExpr(/*setParen=*/false);
-      else if (consume("FLAGS"))
+      else if (Tok == "FLAGS")
         PhdrSpec.SectionFlags = readParenExpr(/*setParen=*/false);
       else
-        setError("unexpected header attribute: " + next());
+        setError("unexpected header attribute: " + Tok);
     }
-    expect(";");
     if (diagnose())
       ThisScriptFile.addPhdrDesc(PhdrSpec);
   }
-  expect("}");
   ThisScriptFile.leavePhdrsCmd();
 }
 
@@ -869,7 +860,9 @@ OutputSectDesc::Epilog ScriptParser::readOutputSectDescEpilogue() {
   }
 
   ThisScriptFile.createStringList();
+  // FIXME: Should be !atEOF()
   while (diagnose() && peek().starts_with(":")) {
+    // FIXME: PHDRs should be parsed in LexState::Default!
     llvm::StringRef Tok = next(LexState::Expr);
     llvm::StringRef PhdrName =
         (Tok.size() == 1 ? unquote(next(LexState::Expr)) : Tok.substr(1));
@@ -893,12 +886,11 @@ OutputSectDesc::Epilog ScriptParser::readOutputSectDescEpilogue() {
 void ScriptParser::readNoCrossRefs() {
   expect("(");
   ThisScriptFile.createStringList();
-  while (peek() != ")" && !atEOF()) {
-    llvm::StringRef SectionName = unquote(next());
+  while (auto Tok = till(")")) {
+    llvm::StringRef SectionName = unquote(Tok);
     ThisScriptFile.getCurrentStringList()->pushBack(
         ThisScriptFile.createScriptSymbol(SectionName));
   }
-  expect(")");
   StringList *SL = ThisScriptFile.getCurrentStringList();
   ThisScriptFile.addNoCrossRefs(*SL);
 }
@@ -943,8 +935,7 @@ void ScriptParser::readOutputArch() {
 
 void ScriptParser::readMemory() {
   expect("{");
-  while (peek() != "}" && !atEOF()) {
-    llvm::StringRef Tok = next();
+  while (auto Tok = till("}")) {
     if (readInclude(Tok))
       continue;
     llvm::StringRef Name = Tok;
@@ -963,7 +954,6 @@ void ScriptParser::readMemory() {
       ThisScriptFile.addMemoryRegion(NameToken, MemoryAttrs, Origin, Length);
     }
   }
-  expect("}");
 }
 
 Expression *
