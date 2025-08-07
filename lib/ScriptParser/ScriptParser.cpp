@@ -121,9 +121,9 @@ bool ScriptParser::readAssignment(llvm::StringRef Tok) {
 void ScriptParser::readEntry() {
   expect("(");
   StringRef Tok = next();
-  StringRef EntrySymbol = unquote(Tok);
+  StrToken *EntrySymbol = readName(Tok);
   expect(")");
-  auto *EntryCmd = ThisScriptFile.addEntryPoint(EntrySymbol.str());
+  auto *EntryCmd = ThisScriptFile.addEntryPoint(EntrySymbol->name());
   EntryCmd->setLineNumberInContext(PrevTokLine);
   if (ThisConfig.options().shouldTraceLinkerScript())
     EntryCmd->dump(llvm::outs());
@@ -607,9 +607,9 @@ void ScriptParser::readOutput() {
 }
 
 void ScriptParser::readOutputSectionDescription(llvm::StringRef Tok) {
-  llvm::StringRef OutSectName = unquote(Tok);
+  StrToken *OutSectName = readName(Tok);
   OutputSectDesc::Prolog Prologue = readOutputSectDescPrologue();
-  ThisScriptFile.enterOutputSectDesc(OutSectName.str(), Prologue);
+  ThisScriptFile.enterOutputSectDesc(OutSectName->name(), Prologue);
   expect("{");
   while (peek() != "}" && !atEOF()) {
     StringRef Tok = next();
@@ -1017,13 +1017,11 @@ void ScriptParser::readExtern() {
 
 void ScriptParser::readRegionAlias() {
   expect("(");
-  llvm::StringRef Alias = unquote(next());
+  StrToken *AliasToken = readName(next());
   expect(",");
-  llvm::StringRef Region = unquote(next());
+  StrToken *RegionToken = readName(next());
   expect(")");
 
-  StrToken *AliasToken = ThisScriptFile.createStrToken(Alias.str());
-  StrToken *RegionToken = ThisScriptFile.createStrToken(Region.str());
   ThisScriptFile.addRegionAlias(AliasToken, RegionToken);
 }
 
@@ -1366,4 +1364,8 @@ bool ScriptParser::isValidSectionPattern(llvm::StringRef Pat) {
   if (Pat.size() == 1 && strchr("(){}", Pat[0]) != nullptr)
     return false;
   return true;
+}
+
+StrToken *ScriptParser::readName(llvm::StringRef Name) {
+  return ThisScriptFile.createParserStr(Name);
 }

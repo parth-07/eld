@@ -7,6 +7,7 @@
 RUN: %clang %clangopts -o %t1.1.o %p/Inputs/1.c -c -ffunction-sections
 RUN: %link %linkopts -o %t1.1.out %t1.1.o -L%libsdir/test -T %p/Inputs/script.t 2>&1 | %filecheck %s
 RUN: %link %linkopts -o %t1.1.out %t1.1.o -L%libsdir/test -T %p/Inputs/script.OutputSectionPlugin.t 2>&1 | %filecheck %s --check-prefix OUTSECT_PLUGIN
+RUN: %link %linkopts -o %t1.1.out %t1.1.o -L%libsdir/test -T %p/Inputs/script.extensive.t 2>&1 | %filecheck %s --check-prefix EXTENSIVE
 #END_TEST
 #CHECK: SECTIONS {
 #CHECK:   .foo : {
