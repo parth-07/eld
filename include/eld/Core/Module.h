@@ -222,6 +222,11 @@ public:
     OutputSectionTableMap[S->name()] = S;
   }
 
+  bool isPresentInOutputSectionTable(const ELFSection &S) const {
+    return std::find(OutputSectionTable.begin(), OutputSectionTable.end(),
+                     &S) != OutputSectionTable.end();
+  }
+
   iterator begin() { return OutputSectionTable.begin(); }
   const_iterator begin() const { return OutputSectionTable.begin(); }
   iterator end() { return OutputSectionTable.end(); }

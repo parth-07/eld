@@ -175,9 +175,7 @@ public:
   /// then it will ask backend to finalize the symbol value.
   /// @return ture - if backend set the symbol value sucessfully
   /// @return false - if backend do not recognize the symbol
-  virtual bool finalizeSymbols() {
-    return (finalizeStandardSymbols() && finalizeTargetSymbols());
-  }
+  virtual bool finalizeSymbols();
 
   /// finalizeStandardSymbols - set the value of standard symbols
   virtual bool finalizeStandardSymbols();
@@ -1021,6 +1019,7 @@ protected:
   // map the LDSymbol to its index in the output dynamic symbol table
   llvm::DenseMap<LDSymbol *, uint32_t> m_pDynSymIndexMap;
 
+  // FIXME: Why maintain two output section tables: here and in module?
   // output section map
   std::unordered_map<ELFSection *, ELFSection *> m_OutputSectionMap;
 

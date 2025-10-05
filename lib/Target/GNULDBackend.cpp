@@ -3271,6 +3271,7 @@ bool GNULDBackend::postLayout() {
         continue;
       if (layoutInfo)
         layoutInfo->recordOutputSection();
+      // FIXME: Why do we have mapping of the section to itself?
       m_OutputSectionMap[cur] = cur;
       m_Module.addOutputSection(cur);
       cur->setIndex(sectionIdx++);
@@ -5161,4 +5162,22 @@ bool GNULDBackend::setupTLS() {
   if (firstTLS)
     firstTLS->setAddrAlign(MaxAlignment);
   return seenTLS;
+}
+
+bool GNULDBackend::finalizeSymbols() {
+  // Remove ghost section symbols -- section symbols of the sections that do not
+  // exist in the output image.
+  auto &Symbols = m_Module.getSymbols();
+  auto it = std::remove_if(Symbols.begin(), Symbols.end(),
+                           [this](const ResolveInfo *RI) {
+                             if (!RI->isSection())
+                               return false;
+                             ELFSection *S = RI->getOwningSection();
+                             if (S->getOutputSection())
+                               S = S->getOutputELFSection();
+                             const auto &M = this->getModule();
+                             return !M.isPresentInOutputSectionTable(*S);
+                           });
+  Symbols.erase(it, Symbols.end());
+  return (finalizeStandardSymbols() && finalizeTargetSymbols());
 }

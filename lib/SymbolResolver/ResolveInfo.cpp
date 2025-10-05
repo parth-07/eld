@@ -95,6 +95,7 @@ void ResolveInfo::overrideVisibility(const ResolveInfo &PFrom) {
 
 void ResolveInfo::setRegular() { ThisBitField &= (~DynamicFlag); }
 
+// FIXME: unused function
 void ResolveInfo::setDynamic() { ThisBitField |= DynamicFlag; }
 
 void ResolveInfo::setSource(bool IsSymbolInDynamicLibrary) {
