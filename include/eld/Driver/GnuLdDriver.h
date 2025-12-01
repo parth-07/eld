@@ -26,6 +26,12 @@
 #include <thread>
 #include <vector>
 
+namespace llvm {
+namespace lto {
+struct Config;
+}
+} // namespace llvm
+
 // Forward declarations.
 namespace eld {
 class DiagnosticEngine;
@@ -67,10 +73,15 @@ public:
   virtual int link(llvm::ArrayRef<const char *> Args,
                    llvm::ArrayRef<llvm::StringRef> ELDFlagsArgs);
 
-  virtual llvm::opt::OptTable *
-  parseOptions(llvm::ArrayRef<const char *> ArgsArr,
-               llvm::opt::InputArgList &ArgList);
+  virtual std::optional<int> parseOptions(llvm::ArrayRef<const char *> ArgsArr,
+                                          llvm::opt::InputArgList &ArgList);
 
+  // Driver-specific function to call the template processLTOOptions with the
+  // correct options table.
+  virtual bool processLTOOptions(llvm::lto::Config &Conf,
+                                 std::vector<std::string> &LLVMOptions);
+
+protected:
   // Check if the options are invalid.
   template <class T> bool checkOptions(llvm::opt::InputArgList &Args) const;
 
@@ -93,6 +104,12 @@ public:
                               eld::OutputTarWriter *outputTar,
                               std::vector<eld::InputAction *> &actions);
 
+  // Parse LTO options and update the LTO config object.
+  template <typename OptTable>
+  bool processLTOOptions(llvm::lto::Config &Conf,
+                         std::vector<std::string> &LLVMOptions);
+
+public:
   // Writes reproduce tarball to disk
   static void writeReproduceTar(void *ModulePtr);
 

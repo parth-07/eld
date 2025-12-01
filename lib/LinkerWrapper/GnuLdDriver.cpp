@@ -33,6 +33,7 @@
 #include "eld/Support/TargetSelect.h"
 #include "eld/Target/TargetMachine.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/LTO/LTO.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Object/ELF.h"
 #include "llvm/Support/FileSystem.h"
@@ -658,12 +659,6 @@ bool GnuLdDriver::processOptions(llvm::opt::InputArgList &Args) {
     ltoOptions.push_back(arg->getValue());
   }
   Config.addCommandLine(Table->getOptionName(T::flto_options), ltoOptions);
-
-  if (const Arg *arg = Args.getLastArg(T::dwodir))
-    Config.options().setDwoDir(arg->getValue());
-
-  if (const Arg *arg = Args.getLastArg(T::lto_sample_profile))
-    Config.options().setLTOSampleProfile(arg->getValue());
 
   // --no-align-segments
   if (Args.hasArg(T::no_align_segments))
@@ -1549,6 +1544,35 @@ bool GnuLdDriver::processReproduceOption(
   return true;
 }
 
+template <typename OptTable>
+bool GnuLdDriver::processLTOOptions(llvm::lto::Config &Conf,
+                                    std::vector<std::string> &LLVMOptions) {
+  llvm::opt::InputArgList &Args = Config.options().parsedArgs();
+
+  // LLVM options will be applied by the caller.
+  for (opt::Arg *Arg : Args.filtered(OptTable::plugin_opt_eq_minus))
+    LLVMOptions.push_back(std::string("-") + Arg->getValue());
+
+  if (const auto *Arg = Args.getLastArg(OptTable::dwodir))
+    Conf.DwoDir = Arg->getValue();
+
+  if (const auto *Arg = Args.getLastArg(OptTable::lto_sample_profile))
+    Conf.SampleProfile = Arg->getValue();
+
+  if (const auto *Arg = Args.getLastArg(OptTable::lto_O)) {
+    llvm::StringRef S = Arg->getValue();
+    uint64_t Value;
+    if (S.getAsInteger(0, Value) || Value > 4) {
+      Config.raise(Diag::invalid_value_for_option)
+          << Arg->getOption().getPrefixedName() << S;
+      return false;
+    }
+    Conf.OptLevel = Value;
+  }
+
+  return true;
+}
+
 void GnuLdDriver::defaultSignalHandler(void *cookie) {
   DiagnosticEngine *DiagEngine = ThisModule->getConfig().getDiagEngine();
   bool DiagEngineUsable = true;
@@ -1799,45 +1823,50 @@ int GnuLdDriver::link(llvm::ArrayRef<const char *> Args) {
   return link(Args, Driver::getELDFlagsArgs());
 }
 
-opt::OptTable *GnuLdDriver::parseOptions(ArrayRef<const char *> Args,
-                                         llvm::opt::InputArgList &ArgList) {
-  OPT_GnuLdOptTable *Table = eld::make<OPT_GnuLdOptTable>();
+std::optional<int> GnuLdDriver::parseOptions(ArrayRef<const char *> Args,
+                                             llvm::opt::InputArgList &ArgList) {
+  Table = eld::make<OPT_GnuLdOptTable>();
   unsigned missingIndex;
   unsigned missingCount;
   ArgList = Table->ParseArgs(Args.slice(1), missingIndex, missingCount);
   if (missingCount) {
     Config.raise(eld::Diag::error_missing_arg_value)
         << ArgList.getArgString(missingIndex) << missingCount;
-    return nullptr;
+    return LINK_FAIL;
   }
   if (ArgList.hasArg(OPT_GnuLdOptTable::help)) {
     Table->printHelp(outs(), Args[0], "RISCV Linker", false,
                      /*ShowAllAliases=*/true);
-    return nullptr;
+    return LINK_SUCCESS;
   }
   if (ArgList.hasArg(OPT_GnuLdOptTable::help_hidden)) {
     Table->printHelp(outs(), Args[0], "RISCV Linker", true,
                      /*ShowAllAliases=*/true);
-    return nullptr;
+    return LINK_SUCCESS;
   }
   if (ArgList.hasArg(OPT_GnuLdOptTable::version)) {
     printVersionInfo();
-    return nullptr;
+    return LINK_SUCCESS;
   }
   // --about
   if (ArgList.hasArg(OPT_GnuLdOptTable::about)) {
     printAboutInfo();
-    return nullptr;
+    return LINK_SUCCESS;
   }
   // -repository-version
   if (ArgList.hasArg(OPT_GnuLdOptTable::repository_version)) {
     printRepositoryVersion();
-    return nullptr;
+    return LINK_SUCCESS;
   }
 
   Config.options().setUnknownOptions(
       ArgList.getAllArgValues(OPT_GnuLdOptTable::UNKNOWN));
-  return Table;
+  return {};
+}
+
+bool GnuLdDriver::processLTOOptions(llvm::lto::Config &Conf,
+                                    std::vector<std::string> &LLVMOptions) {
+  return GnuLdDriver::processLTOOptions<OPT_GnuLdOptTable>(Conf, LLVMOptions);
 }
 
 // Start the link step.
@@ -1847,10 +1876,7 @@ int GnuLdDriver::link(llvm::ArrayRef<const char *> Args,
   if (!ELDFlagsArgs.empty())
     Config.raise(eld::Diag::note_eld_flags_without_output_name)
         << llvm::join(ELDFlagsArgs, " ");
-  llvm::opt::InputArgList ArgList(allArgs.data(),
-                                  allArgs.data() + allArgs.size());
   Config.options().setArgs(allArgs);
-  std::vector<eld::InputAction *> Action;
 
   //===--------------------------------------------------------------------===//
   // Special functions.
@@ -1865,35 +1891,32 @@ int GnuLdDriver::link(llvm::ArrayRef<const char *> Args,
   //===--------------------------------------------------------------------===//
   // Begin Link preprocessing
   //===--------------------------------------------------------------------===//
-  {
-    Table = parseOptions(allArgs, ArgList);
-    if (ArgList.hasArg(OPT_GnuLdOptTable::help) ||
-        ArgList.hasArg(OPT_GnuLdOptTable::help_hidden) ||
-        ArgList.hasArg(OPT_GnuLdOptTable::version) ||
-        ArgList.hasArg(OPT_GnuLdOptTable::about) ||
-        ArgList.hasArg(OPT_GnuLdOptTable::repository_version)) {
-      return LINK_SUCCESS;
-    }
-    if (!Table)
-      return LINK_FAIL;
-    if (!processLLVMOptions<OPT_GnuLdOptTable>(ArgList))
-      return LINK_FAIL;
-    if (!processTargetOptions<OPT_GnuLdOptTable>(ArgList))
-      return LINK_FAIL;
-    if (!processOptions<OPT_GnuLdOptTable>(ArgList))
-      return LINK_FAIL;
+  llvm::opt::InputArgList ArgListLocal;
+  if (auto Ret = parseOptions(allArgs, ArgListLocal))
+    return *Ret;
 
-    if (!ELDFlagsArgs.empty())
-      Config.raise(eld::Diag::note_eld_flags)
-          << Config.options().outputFileName() << llvm::join(ELDFlagsArgs, " ");
+  // Save parsed options so they can be accessed later as needed. Right now it's
+  // only used for LTO options, but can be expanded to track unused aguments.
+  auto &ArgList = Config.options().setParsedArgs(std::move(ArgListLocal));
 
-    if (!checkOptions<OPT_GnuLdOptTable>(ArgList))
-      return LINK_FAIL;
-    if (!overrideOptions<OPT_GnuLdOptTable>(ArgList))
-      return LINK_FAIL;
-    if (!createInputActions<OPT_GnuLdOptTable>(ArgList, Action))
-      return LINK_FAIL;
-  }
+  if (!processLLVMOptions<OPT_GnuLdOptTable>(ArgList))
+    return LINK_FAIL;
+  if (!processTargetOptions<OPT_GnuLdOptTable>(ArgList))
+    return LINK_FAIL;
+  if (!processOptions<OPT_GnuLdOptTable>(ArgList))
+    return LINK_FAIL;
+
+  if (!ELDFlagsArgs.empty())
+    Config.raise(eld::Diag::note_eld_flags)
+        << Config.options().outputFileName() << llvm::join(ELDFlagsArgs, " ");
+
+  if (!checkOptions<OPT_GnuLdOptTable>(ArgList))
+    return LINK_FAIL;
+  if (!overrideOptions<OPT_GnuLdOptTable>(ArgList))
+    return LINK_FAIL;
+  std::vector<eld::InputAction *> Action;
+  if (!createInputActions<OPT_GnuLdOptTable>(ArgList, Action))
+    return LINK_FAIL;
   if (!doLink<OPT_GnuLdOptTable>(ArgList, Action))
     return LINK_FAIL;
   return LINK_SUCCESS;
@@ -1918,6 +1941,8 @@ template bool GnuLdDriver::doLink<OPT_HexagonLinkOptTable>(
 template bool GnuLdDriver::handleReproduce<OPT_HexagonLinkOptTable>(
     llvm::opt::InputArgList &Args, std::vector<eld::InputAction *> &actions,
     bool);
+template bool GnuLdDriver::processLTOOptions<OPT_HexagonLinkOptTable>(
+    llvm::lto::Config &, std::vector<std::string> &);
 #endif
 
 #if defined(ELD_ENABLE_TARGET_ARM) || defined(ELD_ENABLE_TARGET_AARCH64)
@@ -1939,6 +1964,9 @@ template bool GnuLdDriver::doLink<OPT_ARMLinkOptTable>(
 template bool GnuLdDriver::handleReproduce<OPT_ARMLinkOptTable>(
     llvm::opt::InputArgList &Args, std::vector<eld::InputAction *> &actions,
     bool);
+template bool
+GnuLdDriver::processLTOOptions<OPT_ARMLinkOptTable>(llvm::lto::Config &,
+                                                    std::vector<std::string> &);
 #endif
 
 #if ELD_ENABLE_TARGET_RISCV
@@ -1960,6 +1988,8 @@ template bool GnuLdDriver::doLink<OPT_RISCVLinkOptTable>(
 template bool GnuLdDriver::handleReproduce<OPT_RISCVLinkOptTable>(
     llvm::opt::InputArgList &Args, std::vector<eld::InputAction *> &actions,
     bool);
+template bool GnuLdDriver::processLTOOptions<OPT_RISCVLinkOptTable>(
+    llvm::lto::Config &, std::vector<std::string> &);
 #endif
 
 #ifdef ELD_ENABLE_TARGET_X86_64
@@ -1981,4 +2011,6 @@ template bool GnuLdDriver::doLink<OPT_x86_64LinkOptTable>(
 template bool GnuLdDriver::handleReproduce<OPT_x86_64LinkOptTable>(
     llvm::opt::InputArgList &Args, std::vector<eld::InputAction *> &actions,
     bool);
+template bool GnuLdDriver::processLTOOptions<OPT_x86_64LinkOptTable>(
+    llvm::lto::Config &, std::vector<std::string> &);
 #endif

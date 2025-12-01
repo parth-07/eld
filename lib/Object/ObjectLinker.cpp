@@ -16,6 +16,7 @@
 #include "eld/Core/LinkerScript.h"
 #include "eld/Core/Module.h"
 #include "eld/Diagnostics/DiagnosticEngine.h"
+#include "eld/Driver/GnuLdDriver.h"
 #include "eld/GarbageCollection/GarbageCollection.h"
 #include "eld/Input/ArchiveMemberInput.h"
 #include "eld/Input/BitcodeFile.h"
@@ -3177,11 +3178,9 @@ bool ObjectLinker::createLTOObject(void) {
   std::vector<std::string> Options;
   processCodegenOptions(ThisConfig.options().codeGenOpts(), Conf, Options);
 
-  if (const auto &O = ThisConfig.options().getDwoDir())
-    Conf.DwoDir = *O;
-
-  if (const auto &O = ThisConfig.options().getLTOSampleProfile())
-    Conf.SampleProfile = *O;
+  if (!ThisModule->getLinker()->getLinkerDriver()->processLTOOptions(Conf,
+                                                                     Options))
+    return false;
 
   getTargetBackend().AddLTOOptions(Options);
 
