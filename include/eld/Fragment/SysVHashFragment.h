@@ -16,6 +16,8 @@ namespace eld {
 class LinkerConfig;
 class ResolveInfo;
 
+/// SysVHashFragment and the corresponding owning section must always
+/// maintain 1-fragment-per-input-section invariant.
 template <class ELFT> class SysVHashFragment : public TargetFragment {
 public:
   SysVHashFragment(ELFSection *O, std::vector<ResolveInfo *> &R);
@@ -34,6 +36,10 @@ public:
   static bool classof(const SysVHashFragment *) { return true; }
 
   virtual eld::Expected<void> emit(MemoryRegion &mr, Module &M) override;
+
+  bool isFirstFragmentOfInputSection() const override {
+    return true;
+  }
 
 protected:
   std::vector<ResolveInfo *> &DynamicSymbols;

@@ -91,6 +91,10 @@ public:
 
   size_t getSize() const;
 
+  bool isFirstFragmentOfInputSection() const override {
+    return false;
+  }
+
 private:
   EhFramePiece &FDE;
 };
@@ -127,6 +131,10 @@ public:
   size_t getNumFDE() const { return FDEs.size(); }
 
   uint8_t getFdeEncoding(bool Is64Bit, DiagnosticEngine *DiagEngine);
+
+  bool isFirstFragmentOfInputSection() const override {
+    return isFirstFragOfInputSect;
+  }
 
 protected:
   EhFramePiece &CIE;

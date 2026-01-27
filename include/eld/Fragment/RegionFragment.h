@@ -20,10 +20,10 @@
 namespace eld {
 class LinkerConfig;
 
-/** \class RegionFragment
- *  \brief RegionFragment is a kind of Fragment containing input memory region
- */
-// Region fragment expression
+/// Region fragment is used for non-BSS sections from input object files, plugin created
+/// chunks and linker provided non-absolute symbols.
+///
+/// RegionFragment does not satisfy 1-fragment-per-input-section invariant.
 class RegionFragment : public Fragment {
 public:
   RegionFragment(llvm::StringRef PRegion, ELFSection *O, Fragment::Type T,
@@ -49,6 +49,10 @@ public:
   virtual eld::Expected<void> emit(MemoryRegion &Mr, Module &M) override;
 
   virtual void copyData(void *PDest, uint32_t PNBytes, uint64_t POffset) const;
+
+  bool isFirstFragmentOfInputSection() const override {
+    return true;
+  }
 
 protected:
   llvm::StringRef FragmentRegion;

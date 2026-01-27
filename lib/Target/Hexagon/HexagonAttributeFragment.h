@@ -30,6 +30,10 @@ public:
   bool update(ELFSection &S, DiagnosticEngine &E, ObjectFile &O,
               bool AddFeatures);
 
+  bool isFirstFragmentOfInputSection() const override {
+    return true;
+  }
+
 private:
   static constexpr llvm::StringRef Vendor = "hexagon";
   llvm::DenseMap<unsigned, unsigned> Attrs;

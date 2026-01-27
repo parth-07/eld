@@ -53,6 +53,10 @@ public:
 
   StubType getStubType() const { return m_StubType; }
 
+  bool isFirstFragmentOfInputSection() const override {
+    return false;
+  }
+
 private:
   StubType m_StubType;
 };

@@ -143,6 +143,10 @@ public:
   getTargetSymbolContextForReloc(const Relocation &Reloc, uint32_t RelocAddend,
                                  bool UseOldStyleTrampolineName) const;
 
+  bool isFirstFragmentOfInputSection() const override {
+    return false;
+  }
+
 protected:
   /// addFixup - add a fixup for this stub to build a relocation
   void addFixup(DWord POffset, SWord PAddend, Type PType);

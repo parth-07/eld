@@ -43,6 +43,10 @@ public:
 
   size_t defCount() const { return VersionDefs.size(); }
 
+  bool isFirstFragmentOfInputSection() const override {
+    return true;
+  }
+
 public:
   struct VerDefInfo {
     uint16_t VersionID = 0;

@@ -49,6 +49,10 @@ public:
 
   virtual void addSymbol(ResolveInfo *R) override;
 
+  bool isFirstFragmentOfInputSection() const override {
+    return true;
+  }
+
 protected:
   std::vector<ResolveInfo *> Symbols;
   const char *Data;

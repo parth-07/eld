@@ -932,7 +932,7 @@ bool ObjectLinker::sortSections(RuleContainer *I, bool SortRule) {
 bool ObjectLinker::createOutputSection(ObjectBuilder &Builder,
                                        OutputSectionEntry *Output,
                                        bool PostLayout) {
-  uint64_t OutAlign = 0x0, InAlign = 0x0;
+  uint64_t OutAlign = 0x0, SubAlign = 0x0;
   bool IsPartialLink = (LinkerConfig::Object == ThisConfig.codeGenType());
 
   ELFSection *OutSect = Output->getSection();
@@ -948,7 +948,7 @@ bool ObjectLinker::createOutputSection(ObjectBuilder &Builder,
   if (Output->prolog().hasSubAlign()) {
     Output->prolog().subAlign().eval();
     Output->prolog().subAlign().commit();
-    InAlign = Output->prolog().subAlign().result();
+    SubAlign = Output->prolog().subAlign().result();
     HasSubAlign = true;
   }
 
@@ -992,10 +992,17 @@ bool ObjectLinker::createOutputSection(ObjectBuilder &Builder,
       }
       InSect->setAddrAlign(Alignment);
     }
-    if (HasSubAlign && (InSect->getAddrAlign() < InAlign)) {
-      if (InSect->getFragmentList().size()) {
-        InSect->getFragmentList().front()->setAlignment(InAlign);
-        InSect->setAddrAlign(InAlign);
+    if (HasSubAlign) {
+      for (Fragment *F : InSect->getFragmentList()) {
+        if (F->isFirstFragmentOfInputSection()) {
+          // No need to use std::max(...) here because SUBALIGN can be
+          // used to decrease a section's alignment as well.
+          // TODO: Add a warning if SUBALIGN is reducing the fragment's
+          // original alignment, when -Wlinker-script is used.
+          F->setAlignment(SubAlign);
+          InSect->setAddrAlign(std::max(
+              static_cast<uint64_t>(InSect->getAddrAlign()), SubAlign));
+        }
       }
     }
     if (InSect->getFragmentList().size() && !FirstNonEmptyRule)

@@ -16,6 +16,10 @@ class LinkerConfig;
 /** \class BuildIDFragment
  *  \brief BuildIDFragment is a kind of Fragment contains the BuildID
  *  of the program, that can be used to uniquely identify this program
+ *
+ * BuildIDFragment is only used with Module::InternalInputType::GNUBuildID
+ * section. BuildIDFragment and the owning input section must always satisfy
+ * 1-fragment-per-input-section invariant.
  */
 class BuildIDFragment : public Fragment {
 public:
@@ -38,6 +42,10 @@ public:
   eld::Expected<void> emit(MemoryRegion &Mr, Module &M) override;
 
   eld::Expected<void> finalizeBuildID(uint8_t *BufferStart, size_t BufSize);
+
+  bool isFirstFragmentOfInputSection() const override {
+    return true;
+  }
 
 private:
   size_t getHashSize() const;

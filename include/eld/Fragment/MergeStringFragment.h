@@ -80,6 +80,10 @@ public:
 
   void setOffset(uint32_t Offset) override;
 
+  bool isFirstFragmentOfInputSection() const override {
+    return true;
+  }
+
 private:
   /// After this fragment has been given an output offset this function will be
   /// called and set the output offset of every string owned by this fragment

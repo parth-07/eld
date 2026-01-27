@@ -176,6 +176,8 @@ void EhFrameSection::finishAddingFragments(Module &ThisModule) {
   for (auto &F : m_CIEFragments) {
     if (ThisModule.getLayoutInfo())
       ThisModule.getLayoutInfo()->recordFragment(getInputFile(), this, F);
+    if (Fragments.empty())
+      F->markAsFirstFragmentOfInputSection();
     Fragments.push_back(F);
   }
 }

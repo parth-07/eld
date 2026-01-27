@@ -20,6 +20,11 @@ namespace eld {
 class ELFSection;
 class LinkerConfig;
 
+/// FillFragment is used for BSS and COMMON data, EHFrameFiller,
+/// and plugins can also create FillFragment.
+///
+/// FillFragment and the corresponding owning input section must always
+/// satisfy 1-fragment-per-input-section invariant.
 class FillFragment : public Fragment {
 public:
   FillFragment(Module &M, uint64_t PValue, size_t PSize,
@@ -34,6 +39,10 @@ public:
   size_t size() const override;
 
   virtual eld::Expected<void> emit(MemoryRegion &Mr, Module &M) override;
+
+  bool isFirstFragmentOfInputSection() const override {
+    return true;
+  }
 
 private:
   /// ThisSize - The number of bytes to insert.

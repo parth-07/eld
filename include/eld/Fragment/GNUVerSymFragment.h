@@ -37,6 +37,10 @@ public:
 
   size_t size() const override;
 
+  bool isFirstFragmentOfInputSection() const override {
+    return true;
+  }
+
 protected:
   const std::vector<ResolveInfo *> &DynamicSymbols;
 };

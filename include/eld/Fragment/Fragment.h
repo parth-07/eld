@@ -127,6 +127,10 @@ public:
 
   bool originatesFromPlugin(const Module &Module) const;
 
+  virtual bool isFirstFragmentOfInputSection() const = 0;
+
+  void markAsFirstFragmentOfInputSection() { isFirstFragOfInputSect = true; }
+
 private:
   Fragment(const Fragment &);            // DO NOT IMPLEMENT
   Fragment &operator=(const Fragment &); // DO NOT IMPLEMENT
@@ -136,6 +140,9 @@ private:
 
 protected:
   Type Kind;
+  /// It is only used for StringFragment and CIEFragment. Eventually,
+  /// we should restructure the code to remove this field.
+  bool isFirstFragOfInputSect = false;
   ELFSection *OwningSection;
   size_t Alignment;
 };

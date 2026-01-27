@@ -63,6 +63,10 @@ public:
   // Get the GOT for the PLT.
   GOT *getGOT() const { return ThisGot; }
 
+  bool isFirstFragmentOfInputSection() const override {
+    return ThisPltType == PLTType::PLT0;
+  }
+
 protected:
   GOT *ThisGot;
   ResolveInfo *ThisSymInfo;

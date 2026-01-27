@@ -11,6 +11,9 @@
 #include "eld/Script/OutputSectData.h"
 
 namespace eld {
+
+/// OutputSectDataFragment is used for output section data linker script
+/// keywords: BYTE, SHORT, LONG, ...
 class OutputSectDataFragment : public Fragment {
 public:
   OutputSectDataFragment(OutputSectData &OutSectData);
@@ -24,6 +27,10 @@ public:
   size_t size() const override;
 
   virtual eld::Expected<void> emit(MemoryRegion &Mr, Module &M) override;
+
+  bool isFirstFragmentOfInputSection() const override {
+    return true;
+  }
 
 private:
   OutputSectData &OutSectData;

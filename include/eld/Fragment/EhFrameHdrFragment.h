@@ -51,6 +51,10 @@ public:
 
   virtual void dump(llvm::raw_ostream &OS) override;
 
+  bool isFirstFragmentOfInputSection() const override {
+    return true;
+  }
+
 private:
   std::vector<FdeData> getFdeData(uint8_t *D, DiagnosticEngine *DiagEngine);
 

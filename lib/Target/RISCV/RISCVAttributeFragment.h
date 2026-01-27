@@ -61,6 +61,10 @@ public:
   bool updateInfo(llvm::StringRef Contents, InputFile *I,
                   DiagnosticEngine *DiagEngine, bool ShowAttributeMixWarnings);
 
+  bool isFirstFragmentOfInputSection() const override {
+    return true;
+  }
+
 private:
   bool getStringAttribute(llvm::RISCVAttributeParser &, uint32_t Tag,
                           std::string &Value);

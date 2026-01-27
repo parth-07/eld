@@ -13,6 +13,7 @@
 
 #include "eld/Readers/ELFSection.h"
 #include "llvm/ADT/StringRef.h"
+#include "eld/Fragment/StringFragment.h"
 
 using namespace eld;
 
@@ -22,8 +23,12 @@ bool ELFSection::hasSectionData() const { return (Fragments.size() > 0); }
 
 void ELFSection::addFragment(Fragment *F) {
   // Update Owning section.
-  if (!F->getOwningSection())
+  if (!F->getOwningSection()) {
     F->setOwningSection(this);
+    if (llvm::isa<StringFragment>(F) && Fragments.empty()) {
+      F->markAsFirstFragmentOfInputSection();
+    }
+  }
   // Update Alignment if necessary.
   if (AddrAlign < F->alignment())
     AddrAlign = F->alignment();

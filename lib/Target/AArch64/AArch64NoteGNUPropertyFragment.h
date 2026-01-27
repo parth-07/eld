@@ -46,6 +46,10 @@ public:
 
   void resetFlag(uint32_t F) { featureSet &= ~F; }
 
+  bool isFirstFragmentOfInputSection() const override {
+    return true;
+  }
+
 protected:
   uint32_t featureSet = 0;
 };

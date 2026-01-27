@@ -69,6 +69,10 @@ public:
   // -- GOT Type
   GOTType getType() const { return GotType; }
 
+  virtual bool isFirstFragmentOfInputSection() const override {
+    return getType() == GOTPLT0;
+  }
+
 protected:
   ResolveInfo *ThisSymInfo;
   size_t ThisSize;

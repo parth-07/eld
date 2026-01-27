@@ -15,6 +15,8 @@ class LinkerConfig;
  *  \brief StringFragment is a kind of Fragment containing strings.
  *  The difference between the RegionFragment and the string fragment is that
  *  the strings are terminated with \0.
+ *
+ * StringFragment does not satify 1-fragment-per-input-section invariant.
  */
 class StringFragment : public Fragment {
 public:
@@ -33,6 +35,10 @@ public:
   size_t size() const override;
 
   virtual eld::Expected<void> emit(MemoryRegion &Mr, Module &M) override;
+
+  bool isFirstFragmentOfInputSection() const override {
+    return isFirstFragOfInputSect;
+  }
 
 private:
   std::string FragmentString;

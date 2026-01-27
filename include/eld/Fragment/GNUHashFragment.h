@@ -38,6 +38,10 @@ public:
 
   virtual eld::Expected<void> emit(MemoryRegion &mr, Module &M) override;
 
+  bool isFirstFragmentOfInputSection() const override {
+    return true;
+  }
+
 private:
   unsigned calcNBuckets(unsigned NumHashed) const;
 

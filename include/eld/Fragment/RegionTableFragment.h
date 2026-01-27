@@ -42,6 +42,10 @@ public:
 
   virtual void dump(llvm::raw_ostream &OS) override;
 
+  bool isFirstFragmentOfInputSection() const override {
+    return true;
+  }
+
 protected:
   std::vector<std::pair<ELFSection *, ELFSection *>> Table;
   int NumEntries;

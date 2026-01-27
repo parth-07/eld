@@ -78,6 +78,10 @@ public:
 
   bool hasMovtMovW() const;
 
+  bool isFirstFragmentOfInputSection() const override {
+    return true;
+  }
+
 private:
   size_t calculateContentSize() const;
 

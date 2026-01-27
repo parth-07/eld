@@ -12,6 +12,7 @@
 namespace eld {
 class LinkerConfig;
 
+/// TimingFragment does not satisfy 1-fragment-per-input-section invariant.
 class TimingFragment : public Fragment {
 public:
   TimingFragment(uint64_t BeginningOfTime, uint64_t Duration,
@@ -35,6 +36,10 @@ public:
   void setData(uint64_t BeginningOfTime, uint64_t Duration);
 
   const TimingSlice *getTimingSlice() const { return TimeSlice; }
+
+  bool isFirstFragmentOfInputSection() const override {
+    return true;
+  }
 
 private:
   TimingSlice *TimeSlice;
