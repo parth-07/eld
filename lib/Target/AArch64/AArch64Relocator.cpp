@@ -232,12 +232,22 @@ void AArch64Relocator::scanLocalReloc(InputFile &pInput, Relocation &pReloc,
   case llvm::ELF::R_AARCH64_LD64_GOTPAGE_LO15: {
     std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
     // Symbol needs GOT entry, reserve entry in .got
-    // return if we already create GOT for this symbol
-    if (rsym->reserved() & ReserveGOT)
+    // return if we already create GOT or PLT for this symbol
+    if (rsym->reserved() & (ReserveGOT | ReservePLT))
       return;
-    // If building PIC object, a dynamic relocation with
-    // type RELATIVE is needed to relocate this GOT entry.
-    CreateGOT(Obj, pReloc, config().isCodeIndep(), m_Target,
+
+    // create IRELATIVE for IFUNC symbol in static executables
+    if (rsym->type() == ResolveInfo::IndirectFunc && config().isCodeStatic()) {
+      m_Target.createPLT(Obj, rsym, true);
+      rsym->setReserved(rsym->reserved() | ReservePLT);
+      AArch64LDBackend &backend = getTarget();
+      backend.defineIRelativeRange(*rsym);
+      return;
+    }
+
+    // if the symbol cannot be fully resolved at link time, then we need a
+    // dynamic relocation
+    CreateGOT(Obj, pReloc, !config().isCodeStatic(), m_Target,
               config().codeGenType() == LinkerConfig::Exec);
     // set GOT bit
     rsym->setReserved(rsym->reserved() | ReserveGOT);
@@ -413,6 +423,18 @@ void AArch64Relocator::scanGlobalReloc(InputFile &pInput, Relocation &pReloc,
   case llvm::ELF::R_AARCH64_ADR_PREL_PG_HI21:
   case R_AARCH64_ADR_PREL_PG_HI21_NC: {
     std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
+    
+    // create IRELATIVE for IFUNC symbol in static executables
+    if (rsym->type() == ResolveInfo::IndirectFunc && config().isCodeStatic()) {
+      if (!(rsym->reserved() & ReservePLT)) {
+        m_Target.createPLT(Obj, rsym, true);
+        rsym->setReserved(rsym->reserved() | ReservePLT);
+        AArch64LDBackend &backend = getTarget();
+        backend.defineIRelativeRange(*rsym);
+      }
+      return;
+    }
+    
     if (getTarget().symbolNeedsDynRel(*rsym, (rsym->reserved() & ReservePLT),
                                       false)) {
       if (getTarget().symbolNeedsCopyReloc(pReloc, *rsym)) {

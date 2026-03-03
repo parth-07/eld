@@ -1,0 +1,24 @@
+#---IFuncGOT.test----------------------------- Executable --------------------#
+#BEGIN_COMMENT
+# Test IFUNC symbol accessed via PC-relative relocations (address-taken).
+# This test verifies that when an IFUNC symbol's address is taken (not directly
+# called), eld correctly creates a PLT entry and IRELATIVE relocation for
+# static non-PIE executables.
+#END_COMMENT
+#START_TEST
+RUN: %clang %clangopts -o %t1.o -c %p/Inputs/ifunc.c
+RUN: %clang %clangopts -o %t2.o -c %p/Inputs/main.c
+RUN: %link %linkopts -o %t.out %t1.o %t2.o
+RUN: %readelf --sections --relocs --symbols %t.out | %filecheck %s
+#END_TEST
+
+CHECK: .rela.plt
+CHECK: .plt
+CHECK: .got
+
+CHECK: Relocation section '.rela.plt'
+CHECK: R_AARCH64_IRELATIVE
+
+CHECK: Symbol table
+CHECK: {{[0-9]+}}: {{[0-9a-f]+}}{{.*}}FUNC{{.*}}LOCAL{{.*}}resolve_foo
+CHECK: {{[0-9]+}}: {{[0-9a-f]+}}{{.*}}IFUNC{{.*}}GLOBAL{{.*}}foo
