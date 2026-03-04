@@ -2,16 +2,14 @@
 #BEGIN_COMMENT
 # When code takes the address of an IFUNC symbol through the GOT in a static
 # executable (via R_AARCH64_ADR_GOT_PAGE + R_AARCH64_LD64_GOT_LO12_NC), the
-# GOT entry must contain the address of the PLT entry, not the IFUNC resolver.
-# The PLT entry correctly indirects through the IRELATIVE-resolved GOT.PLT
-# slot, so callers that load the function pointer from the GOT and then call
-# through it will reach the real implementation rather than the resolver.
+# linker must emit an R_AARCH64_IRELATIVE relocation targeting the regular GOT
+# entry.  At startup the CRT iterates __rela_iplt_start .. __rela_iplt_end,
+# calls each IFUNC resolver, and writes the result into the GOT entry.
 #
-# This is a regression test for a bug where storing the IFUNC resolver address
-# in the regular GOT entry caused silent memory corruption: code that loaded
-# the address (e.g., to use memcpy as a function pointer) would invoke the
-# resolver instead of the actual implementation, appearing to succeed but never
-# actually performing the operation.
+# This is a regression test for a bug where no IRELATIVE relocation was emitted
+# for the regular GOT entry, leaving it permanently set to the resolver address.
+# Code that loaded this address as a function pointer would invoke the resolver
+# instead of the actual implementation, causing silent memory corruption.
 #END_COMMENT
 #START_TEST
 
@@ -20,20 +18,19 @@
 # RUN: %llvm-mc -filetype=obj -triple=aarch64 use.s -o use.o
 # RUN: %link %linkopts -march aarch64 def.o use.o -o out --section-start .text=0x1000
 
-## Verify an IRELATIVE relocation exists for the IFUNC resolver.
+## Two IRELATIVE relocations are expected: one targeting the regular .got entry
+## (for the GOT-based address load) and one targeting the .got.plt entry (for
+## the direct call through PLT).
 # RUN: llvm-readobj -r out | %filecheck --check-prefix=RELOCS %s
 
 ## Verify relevant sections exist.
 # RUN: %readelf -S -W out | %filecheck --check-prefix=SECTIONS %s
 
-## The GOT entry (.got) for myfunc must contain the PLT entry address, not the
-## resolver address.  With --section-start .text=0x1000, the IFUNC resolver
-## lives at 0x1008.  If the linker incorrectly places the resolver address in
-## the GOT, the hex dump would contain 0x1008 in little-endian (08100000
-## 00000000).  With the fix, the GOT instead holds the PLT entry address which
-## is below .text.
+## The regular GOT entry contains the resolver address at link time (0x1008 in
+## LE).  This is correct: the IRELATIVE relocation will fix it up at startup.
 # RUN: %readelf -x .got out | %filecheck --check-prefix=GOT %s
 
+# RELOCS: R_AARCH64_IRELATIVE - 0x1008
 # RELOCS: R_AARCH64_IRELATIVE - 0x1008
 
 # SECTIONS: .rela.plt
@@ -41,9 +38,7 @@
 # SECTIONS: .got
 # SECTIONS: .got.plt
 
-## The .got hex dump must NOT contain the resolver address (0x1008 in LE).
-## The buggy behavior stored the resolver here; the fix stores the PLT address.
-# GOT-NOT: 08100000 00000000
+# GOT: 08100000 00000000
 
 #END_TEST
 
@@ -83,8 +78,8 @@ resolve_myfunc:
   .type  _start, @function
 _start:
   // Load &myfunc from GOT -- generates R_AARCH64_ADR_GOT_PAGE +
-  // R_AARCH64_LD64_GOT_LO12_NC.  This is the code path that was buggy:
-  // the GOT entry must hold the PLT address, not the resolver address.
+  // R_AARCH64_LD64_GOT_LO12_NC.  The linker emits an IRELATIVE relocation
+  // on this GOT entry so the CRT resolves it at startup.
   adrp x8, :got:myfunc
   ldr  x8, [x8, :got_lo12:myfunc]
 

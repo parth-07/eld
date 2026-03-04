@@ -515,26 +515,23 @@ void AArch64Relocator::scanGlobalReloc(InputFile &pInput, Relocation &pReloc,
     if (rsym->reserved() & ReserveGOT)
       return;
 
-    // For IFUNC symbols in static executables, the GOT entry must contain
-    // the PLT entry address rather than the IFUNC resolver address. The PLT
-    // entry correctly indirects through the IRELATIVE-resolved GOT.PLT slot,
-    // so callers that load the function address from the GOT and then call
-    // through it will reach the actual implementation.
+    // For IFUNC symbols in static executables, emit an IRELATIVE relocation
+    // in .rela.plt targeting the regular GOT entry.  The GOT entry is
+    // initially filled with the resolver address (via getContent /
+    // SymbolValue).  At startup the CRT iterates __rela_iplt_start ..
+    // __rela_iplt_end, calls each resolver, and stores the result back into
+    // the GOT entry, so callers that load the function pointer from the GOT
+    // will reach the real implementation.
     if (rsym->type() == ResolveInfo::IndirectFunc && config().isCodeStatic()) {
-      // Ensure a PLT entry (with IRELATIVE relocation) exists.
-      if (!(rsym->reserved() & ReservePLT)) {
-        m_Target.createPLT(Obj, rsym, /*isIRelative=*/true);
-        rsym->setReserved(rsym->reserved() | ReservePLT);
-        m_Target.defineIRelativeRange(*rsym);
-      }
-      // Create a GOT entry whose value is the PLT entry address.
       AArch64GOT *G = m_Target.createGOT(GOT::Regular, Obj, rsym);
-      AArch64PLT *P = m_Target.findEntryInPLT(rsym);
-      FragmentRef *PLTRef = make<FragmentRef>(*P, 0);
-      Relocation *r = Relocation::Create(llvm::ELF::R_AARCH64_ABS64, 64,
-                                         make<FragmentRef>(*G, 0), 0);
-      Obj->getGOT()->addRelocation(r);
-      r->modifyRelocationFragmentRef(PLTRef);
+      G->setValueType(GOT::SymbolValue);
+      // Place the IRELATIVE in .rela.plt so the CRT can find it via
+      // __rela_iplt_start / __rela_iplt_end.
+      Relocation &rela_entry = *Obj->getRelaPLT()->createOneReloc();
+      rela_entry.setType(llvm::ELF::R_AARCH64_IRELATIVE);
+      rela_entry.setTargetRef(make<FragmentRef>(*G, 0));
+      rela_entry.setSymInfo(rsym);
+      m_Target.defineIRelativeRange(*rsym);
       rsym->setReserved(rsym->reserved() | ReserveGOT);
       return;
     }
