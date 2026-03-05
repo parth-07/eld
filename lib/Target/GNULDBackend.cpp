@@ -2627,6 +2627,17 @@ uint32_t GNULDBackend::getSegmentFlag(const uint32_t pSectionFlag) {
   return flag;
 }
 
+std::string GNULDBackend::getSegmentFlagString(uint32_t segFlag) const {
+  std::string flag;
+  if (segFlag & llvm::ELF::PF_R)
+    flag += "R";
+  if (segFlag & llvm::ELF::PF_W)
+    flag += "W";
+  if (segFlag & llvm::ELF::PF_X)
+    flag += "X";
+  return flag;
+}
+
 /// setOutputSectionOffset - helper function to set output sections' offset.
 bool GNULDBackend::setOutputSectionOffset() {
   LinkerScript &script = m_Module.getScript();

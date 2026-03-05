@@ -1,0 +1,12 @@
+#---CreatingLoadSegmentDiag.test--------------------------- Executable --------------------#
+#BEGIN_COMMENT
+# This test checks the linker diagnostics emitted when creating LOAD segments.
+#END_COMMENT
+#START_TEST
+RUN: %clang %clangopts -c %p/Inputs/CreatingLoadSegmentDiag/1.c -o %t.o -ffunction-sections -fdata-sections
+RUN: %link %linkopts -o %t.out %t.o -T %p/Inputs/CreatingLoadSegmentDiag/script.t
+RUN: %readelf -S -W %t.out | %filecheck %s
+CHECK: .foo
+CHECK-NEXT: .data
+CHECK-NEXT: .bar
+#END_TEST

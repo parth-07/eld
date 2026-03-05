@@ -63,3 +63,5 @@ DIAG(error_offset_not_assigned_for_output_section, DiagnosticEngine::Error,
      "Requested offset for output section %0 has not yet been assigned")
 DIAG(warn_empty_segment, DiagnosticEngine::Warning,
      "Empty segment: '%0'")
+DIAG(verbose_new_pt_load_seg, DiagnosticEngine::Verbose,
+     "Creating new PT_LOAD segment %0")

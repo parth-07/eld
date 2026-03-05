@@ -508,6 +508,8 @@ public:
   /// flag
   inline uint32_t getSegmentFlag(const uint32_t pSectionFlag);
 
+  std::string getSegmentFlagString(uint32_t segFlag) const;
+
   virtual bool finalizeScanRelocations() { return true; }
 
   /// setOutputSectionOffset - helper function to set output sections' offset.

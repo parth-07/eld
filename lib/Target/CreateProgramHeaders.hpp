@@ -201,6 +201,8 @@ bool GNULDBackend::createProgramHdrs() {
 
     bool isCurAlloc = cur->isAlloc();
 
+    std::optional<std::string> newSegReason;
+
     //
     // Add file header to layout, if it is not present.
     //
@@ -217,6 +219,7 @@ bool GNULDBackend::createProgramHdrs() {
     // If there were new sections added, reset and resume
     //
     if (isNewSectionsAddedToLayout()) {
+      // TODO: Resetting layout because FILEHDR / PHDR section got inserted.
       reset_state();
       continue;
     }
@@ -277,8 +280,12 @@ bool GNULDBackend::createProgramHdrs() {
     addr = config().options().addressMap().find(cur->name());
     if (addr != addrEnd) {
       vma = addr->getValue();
-      if (isCurAlloc)
+      if (isCurAlloc) {
+        newSegReason =
+            "due to command-line specified address for the section '" +
+            cur->name().str() + "'";
         createPT_LOAD = true;
+      }
       if (isCurAlloc)
         dotSymbol->setValue(vma);
     }
@@ -376,20 +383,32 @@ bool GNULDBackend::createProgramHdrs() {
       cur_flag = (cur_flag & ~llvm::ELF::PF_W);
 
     // getSegmentFlag returns 0 if the section is not allocatable.
-    if ((cur_flag != prev_flag) && (isCurAlloc))
+    if ((cur_flag != prev_flag) && (isCurAlloc)) {
+      newSegReason = "due to flag change. Prev: " + getSegmentFlagString(prev_flag) +
+                     ", New: " + getSegmentFlagString(cur_flag);
       createPT_LOAD = true;
+    }
 
-    if (linkerScriptHasMemoryCommand && (cur_mem_region != prev_mem_region))
+    if (linkerScriptHasMemoryCommand && (cur_mem_region != prev_mem_region)) {
+      newSegReason = "due to memory region change. Prev: " + prev_mem_region +
+                     ", New: " + cur_mem_region;
       createPT_LOAD = true;
+    }
 
+    // FIXME: Redundant. Same as above.
     if (linkerScriptHasMemoryCommand && (cur_mem_region != prev_mem_region))
       createPT_LOAD = true;
 
     // If the current section is alloc section and if the previous section is
     // NOBITS and current is PROGBITS, we need to create a new segment.
     if (isCurAlloc && cur->isWanted() && !isPrevTBSS) {
-      if ((cur_flag == prev_flag) && handleBSS(prev, cur))
+      if ((cur_flag == prev_flag) && handleBSS(prev, cur)) {
+        newSegReason =
+            "due to section type change. Prev: " +
+            prev->getELFTypeStr(prev->name(), prev->getType()).str() +
+            ", New: " + cur->getELFTypeStr(cur->name(), cur->getType()).str();
         createPT_LOAD = true;
+      }
     }
 
     // Calculate VMA offset
@@ -403,19 +422,25 @@ bool GNULDBackend::createProgramHdrs() {
         // which case the vmaoffset should 0x0
         if (vma >= (prev->addr() + prev->size()))
           vmaoffset = vma - (prev->addr() + prev->size());
-        else
+        else {
           // Without program headers, we always create a new segment if the
           // previous address is larger than the current address. Calculating
           // the offsets is taken care automatically. The gnu linker may choose
           // to place the sections in decreasing order of addresses and later
           // decide to sort it as is done in CreateScriptProgramheaders.
           // TODO: raise an error to see LMA needs to be assigned.
+          newSegReason = "because previous section address is greater than current "
+                         "section address. Prev: " + std::to_string(prev->addr()) +
+                         ", Current: " + std::to_string(vma);
           createPT_LOAD = true;
+        }
 
         // If Program headers are not specified and the vma difference is big
         // lets create a PT_LOAD to adjust the offset.
-        if (std::abs(vmaoffset) > (int64_t)segAlign)
+        if (std::abs(vmaoffset) > (int64_t)segAlign) {
+          newSegReason = "due to large VMA difference. VMA offset: " + std::to_string(vmaoffset);
           createPT_LOAD = true;
+        }
       }
     }
     // create a PT_LOAD if the pma and vma are decoupled
@@ -432,8 +457,10 @@ bool GNULDBackend::createProgramHdrs() {
     }
 
     // If we dont have a load segment created, create a PT_LOAD.
-    if (!load_seg)
+    if (!load_seg) {
+      newSegReason = "because no load segment exists";
       createPT_LOAD = true;
+    }
 
     bool sectionHasLoadSeg = false;
     bool sectionHasNoteSeg = false;
@@ -528,6 +555,8 @@ bool GNULDBackend::createProgramHdrs() {
         load_seg = make<ELFSegment>(llvm::ELF::PT_LOAD,
                                     getSegmentFlag(cur->getFlags()));
         elfSegmentTable().addSegment(load_seg);
+        if (newSegReason)
+          config().raise(Diag::verbose_new_pt_load_seg) << newSegReason.value();
         last_section_needs_new_segment = false;
         newSegmentCreated = true;
       } else
