@@ -413,6 +413,15 @@ void GNULDBackend::DefineStandardSymFromSegment(
 
 int64_t GNULDBackend::getPLTAddr(ResolveInfo *pInfo) const { return 0; }
 
+bool GNULDBackend::isDiscardedSection(const ELFSection *Section) {
+  if (!Section)
+    return false;
+  if (Section->isDiscard())
+    return true;
+  OutputSectionEntry *OutputSect = Section->getOutputSection();
+  return OutputSect && OutputSect->isDiscard();
+}
+
 bool GNULDBackend::finalizeStandardSymbols() {
   eld::RegisterTimer T("Finalize Standard Symbols", "Perform Layout",
                        m_Module.getConfig().options().printTimingStats());
@@ -4117,6 +4126,7 @@ bool GNULDBackend::maySkipRelocProcessing(Relocation *pReloc) const {
         }
         return true;
       }
+
     return false;
   };
   return canSkip(pReloc);

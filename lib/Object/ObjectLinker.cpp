@@ -2271,11 +2271,69 @@ void ObjectLinker::finalizeSymbolValue(ResolveInfo *I) const {
   }
 }
 
-/// relocate - applying relocation entries and create relocation
-/// section in the output files
-/// Create relocation section, asking GNULDBackend to
-/// read the relocation information into RelocationEntry
-/// and push_back into the relocation section
+bool ObjectLinker::checkAndSkipApplyRelocation(Relocation &R) {
+  ResolveInfo *Info = R.symInfo();
+
+  if (getTargetBackend().isRelocationRelaxed(&R) || !Info)
+    return true;
+
+  if (!Info->outSymbol()->hasFragRef() &&
+      Info->type() == ResolveInfo::Section &&
+      Info->desc() == ResolveInfo::Undefined)
+    return true;
+
+  if (Info->outSymbol()->hasFragRef() &&
+      Info->outSymbol()->fragRef()->frag()->getOwningSection()->isDiscard())
+    return true;
+
+  ELFSection *ApplySect = R.targetRef()->frag()->getOwningSection();
+
+  if (ApplySect->isIgnore() || ApplySect->isDiscard())
+    return true;
+
+  ELFSection *TargetSect = R.targetSection();
+  if (Info->outSymbol()->shouldIgnore() ||
+      (Info->outSymbol()->fragRef() &&
+       Info->outSymbol()->fragRef()->isDiscard()) ||
+      (TargetSect && TargetSect->isIgnore())) {
+    if (ThisModule->getPrinter()->isVerbose())
+      ThisConfig.raise(Diag::applying_endof_image_address)
+          << Info->name() << R.getTargetPath(ThisConfig.options())
+          << R.getSourcePath(ThisConfig.options());
+    R.target() = getTargetBackend().getValueForDiscardedRelocations(&R);
+    return true;
+  }
+
+  if (Info->reserved() & Relocator::ReserveGOT) {
+    if (GNULDBackend::isDiscardedSection(getTargetBackend().getGOT())) {
+      ThisConfig.raise(Diag::error_reloc_refers_discarded_got_plt)
+          << Info->getDecoratedName(ThisConfig.options().shouldDemangle())
+          << ApplySect->getInputFile()->getInput()->decoratedPath()
+          << getTargetBackend().getGOT()->name();
+      return true;
+    }
+  }
+
+  if (Info->reserved() & Relocator::ReservePLT) {
+    if (GNULDBackend::isDiscardedSection(getTargetBackend().getPLT())) {
+      ThisConfig.raise(Diag::error_reloc_refers_discarded_got_plt)
+          << Info->getDecoratedName(ThisConfig.options().shouldDemangle())
+          << ApplySect->getInputFile()->getInput()->decoratedPath()
+          << getTargetBackend().getPLT()->name();
+      return true;
+    }
+    if (GNULDBackend::isDiscardedSection(getTargetBackend().getGOTPLT())) {
+      ThisConfig.raise(Diag::error_reloc_refers_discarded_got_plt)
+          << Info->getDecoratedName(ThisConfig.options().shouldDemangle())
+          << ApplySect->getInputFile()->getInput()->decoratedPath()
+          << getTargetBackend().getGOTPLT()->name();
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool ObjectLinker::relocation(bool EmitRelocs) {
   // when producing relocatables, no need to apply relocation
   if (LinkerConfig::Object == ThisConfig.codeGenType())
@@ -2352,6 +2410,8 @@ bool ObjectLinker::relocation(bool EmitRelocs) {
       if (Section->isRelocationSection())
         continue;
       for (auto &Relocation : Section->getRelocations()) {
+        if (checkAndSkipApplyRelocation(*Relocation))
+          continue;
         Relocation->apply(*getTargetBackend().getRelocator());
       }
     }
@@ -2370,55 +2430,12 @@ bool ObjectLinker::relocation(bool EmitRelocs) {
         continue;
       if (Rs->isDiscard())
         continue;
-      auto ProcessReloc = [&](Relocation *Relocation) -> bool {
-        // bypass the reloc if the symbol is in the discarded input section
-        ResolveInfo *Info = Relocation->symInfo();
-
-        // Dont process relocations that are relaxed.
-        if (getTargetBackend().isRelocationRelaxed(Relocation))
-          return false;
-
-        if (!Info->outSymbol()->hasFragRef() &&
-            ResolveInfo::Section == Info->type() &&
-            ResolveInfo::Undefined == Info->desc())
-          return false;
-
-        if ((Info->outSymbol()->hasFragRef() && Info->outSymbol()
-                                                    ->fragRef()
-                                                    ->frag()
-                                                    ->getOwningSection()
-                                                    ->isDiscard()))
-          return false;
-
-        ELFSection *ApplySect =
-            Relocation->targetRef()->frag()->getOwningSection();
-        // bypass the reloc if the section where it sits will be discarded.
-        if (ApplySect->isIgnore())
-          return false;
-        if (ApplySect->isDiscard())
-          return false;
-        ELFSection *TargetSect = Relocation->targetSection();
-        if (Info->outSymbol()->shouldIgnore() ||
-            (Info->outSymbol()->fragRef() &&
-             Info->outSymbol()->fragRef()->isDiscard()) ||
-            (TargetSect && TargetSect->isIgnore())) {
-          if (ThisModule->getPrinter()->isVerbose())
-            ThisConfig.raise(Diag::applying_endof_image_address)
-                << Info->name()
-                << Relocation->getTargetPath(ThisConfig.options())
-                << Relocation->getSourcePath(ThisConfig.options());
-          Relocation->target() =
-              getTargetBackend().getValueForDiscardedRelocations(Relocation);
-          return false;
-        }
-        return true;
-      };
       for (auto &Relocation : Rs->getLink()->getRelocations()) {
-        if (ProcessReloc(Relocation)) {
-          if (EmitRelocs)
-            EmitOneReloc(Relocation);
-          Relocation->apply(*getTargetBackend().getRelocator());
-        }
+        if (checkAndSkipApplyRelocation(*Relocation))
+          continue;
+        if (EmitRelocs)
+          EmitOneReloc(Relocation);
+        Relocation->apply(*getTargetBackend().getRelocator());
       } // for all relocations
     } // for all relocation section
 

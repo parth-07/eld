@@ -177,6 +177,12 @@ public:
                              LinkerScript::PluginVectorT PluginVect,
                              Relocator::CopyRelocs &);
 
+  /// Check if a relocation should be skipped during the apply phase.
+  /// Returns true if the relocation should be skipped.
+  /// Emits a diagnostic if the skip is due to a user error (e.g., discarded
+  /// GOT/PLT sections).
+  bool checkAndSkipApplyRelocation(Relocation &R);
+
   bool finalizeScanRelocations();
 
   /// initStubs - initialize stub-related stuff.

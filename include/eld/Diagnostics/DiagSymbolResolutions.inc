@@ -79,6 +79,8 @@ DIAG(note_resolving_from_symdef_file, DiagnosticEngine::Note,
      "Resolving symbol '%0' from sym def file '%1'")
 DIAG(error_referenced_discarded_section, DiagnosticEngine::Error,
      "`%0' referenced in section `%1' of %2: defined in discarded section")
+DIAG(error_reloc_refers_discarded_got_plt, DiagnosticEngine::Error,
+     "symbol '%0' referenced in file '%1' depends upon discarded %2 section")
 DIAG(error_patchable_override, DiagnosticEngine::Error,
      "Patchable symbol '%0' in file '%1' is overridden by non-patchable symbol "
      "from file '%2'")

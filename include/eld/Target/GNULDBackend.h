@@ -659,6 +659,7 @@ public:
   ELFSection *getPLT() const;
   ELFSection *getRelaDyn() const;
   ELFSection *getRelaPLT() const;
+  static bool isDiscardedSection(const ELFSection *Section);
 
   virtual LDSymbol *getGOTSymbol() const { return m_pGOTSymbol; }
 
