@@ -100,14 +100,14 @@ bool Input::resolvePath(const LinkerConfig &PConfig) {
     ResolvedPath = eld::sys::fs::Path(FileName);
     return true;
   }
-
   if (Type == Input::Script) {
     if (shouldPrependSysrootToScriptInput(PConfig)) {
       ResolvedPath = PSearchDirs.sysroot();
       ResolvedPath->append(FileName);
     }
     if (!llvm::sys::fs::exists(ResolvedPath->native())) {
-      const sys::fs::Path *P = PSearchDirs.find(FileName, Input::Script);
+      const sys::fs::Path *P =
+          PSearchDirs.find(FileName, SearchDirs::SearchInputType::Script);
       if (P != nullptr)
         ResolvedPath = *P;
     }
@@ -116,11 +116,13 @@ bool Input::resolvePath(const LinkerConfig &PConfig) {
     const sys::fs::Path *NameSpecPath = nullptr;
     if (Attr.isStatic()) {
       // with --static, we must search an archive.
-      NameSpecPath = PSearchDirs.find(FileName, Input::Archive);
+      NameSpecPath =
+          PSearchDirs.find(FileName, SearchDirs::SearchInputType::Archive);
     } else {
       // otherwise, with --Bdynamic, we can find either an archive or a
       // shared object.
-      NameSpecPath = PSearchDirs.find(FileName, Input::DynObj);
+      NameSpecPath =
+          PSearchDirs.find(FileName, SearchDirs::SearchInputType::DynObj);
     }
     if (nullptr == NameSpecPath) {
       DiagEngine->raise(Diag::err_cannot_find_namespec) << FileName;

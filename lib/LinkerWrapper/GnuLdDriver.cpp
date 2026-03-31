@@ -25,6 +25,7 @@
 #include "eld/Input/ZOption.h"
 #include "eld/LayoutMap/TextLayoutPrinter.h"
 #include "eld/LayoutMap/YamlLayoutPrinter.h"
+#include "eld/Object/ArchiveMemberReport.h"
 #include "eld/Support/MappingFileReader.h"
 #include "eld/Support/MsgHandling.h"
 #include "eld/Support/OutputTarWriter.h"
@@ -1065,10 +1066,15 @@ bool GnuLdDriver::processOptions(llvm::opt::InputArgList &Args) {
     Config.options().setShowProgressBar();
 
   std::optional<std::string> reproduceFileName;
-  // --reproduce
+  // --reproduce <tarfilename>|default
+  // When the special value "default" is given, the tar filename defaults to
+  // <output>.tar (where <output> is the -o filename, or "a.out" if not set).
   if (llvm::opt::Arg *arg = Args.getLastArg(T::reproduce)) {
     Config.options().setRecordInputfiles();
-    reproduceFileName = arg->getValue();
+    llvm::StringRef val = arg->getValue();
+    reproduceFileName = (val == "default")
+                            ? Config.options().outputFileName() + ".tar"
+                            : val.str();
   }
 
   // --reproduce-compressed
@@ -1078,10 +1084,14 @@ bool GnuLdDriver::processOptions(llvm::opt::InputArgList &Args) {
     reproduceFileName = arg->getValue();
   }
 
-  // --reproduce-on-fail
+  // --reproduce-on-fail <tarfilename>|default
+  // Same "default" keyword logic as --reproduce.
   if (llvm::opt::Arg *arg = Args.getLastArg(T::reproduce_on_fail)) {
     Config.options().setReproduceOnFail(true);
-    reproduceFileName = arg->getValue();
+    llvm::StringRef val = arg->getValue();
+    reproduceFileName = (val == "default")
+                            ? Config.options().outputFileName() + ".tar"
+                            : val.str();
   }
 
   if (reproduceFileName)
@@ -1221,6 +1231,11 @@ bool GnuLdDriver::processOptions(llvm::opt::InputArgList &Args) {
   // --plugin-activity-file=<file>
   if (llvm::opt::Arg *A = Args.getLastArg(T::PluginActivityFile)) {
     Config.options().setPluginActivityLogFile(A->getValue());
+  }
+
+  // --archive-member-report=<file>
+  if (llvm::opt::Arg *A = Args.getLastArg(T::ArchiveMemberReportFile)) {
+    Config.options().setArchiveMemberReportFile(A->getValue());
   }
 
   Config.options().setUnknownOptions(Args.getAllArgValues(T::UNKNOWN));
@@ -1783,7 +1798,7 @@ void GnuLdDriver::defaultSignalHandler(void *cookie) {
       commandLine.append(" ");
     }
   }
-  commandLine.append("--reproduce build.tar");
+  commandLine.append("--reproduce=default");
   llvm::SmallString<256> outputPath;
   std::error_code EC =
       llvm::sys::fs::createTemporaryFile("reproduce", "sh", outputPath);
@@ -1855,7 +1870,8 @@ bool GnuLdDriver::doLink(llvm::opt::InputArgList &Args,
     Config.targets().setTriple(Triple);
   }
   eld::LayoutInfo *layoutInfo = nullptr;
-  if (!Config.options().layoutFile().empty() || Config.options().printMap())
+  if (!Config.options().layoutFile().empty() || Config.options().printMap() ||
+      Config.options().getArchiveMemberReportFile())
     layoutInfo = eld::make<eld::LayoutInfo>(Config);
   ThisModule = eld::make<eld::Module>(m_Script, Config, layoutInfo);
 

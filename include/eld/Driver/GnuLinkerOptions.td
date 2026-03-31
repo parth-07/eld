@@ -698,6 +698,7 @@ defm trace
           "collection is enabled\n"
           "\t\t\t --trace=merge-strings : trace linker string optimization\n"
           "\t\t\t --trace=trampolines : trace trampolines\n"
+          "\t\t\t --trace=untar : trace tar extraction entries\n"
           "\t\t\t --trace=wrap-symbols : trace symbol wrap options\n"
           "\t\t\t --trace=symdef : trace symbol resolution from symdef files\n"
           "\t\t\t --trace=dynamic-linking : trace dynamic linking\n"
@@ -956,10 +957,10 @@ def allow_bss_conversion
                "sections in the same segment">,
       Group<grp_extendedopts>;
 defm reproduce : smDash<"reproduce", "reproduce",
-                        "Write a tar file containing input files and command "
-                        "line options to inspect and re-link">,
-                  MetaVarName<"<tarfilename>">,
-                 Group<grp_extendedopts>;
+                       "Write a tar file containing input files and command "
+                       "line options to inspect and re-link">,
+                 MetaVarName<"<tarfilename>|default">,
+                Group<grp_extendedopts>;
 defm reproduce_compressed : smDashWithOpt<"reproduce-compressed", "reproduce_compressed",
                                    "Write compressed tar file in zlib format "
                                    "containing input files and command line "
@@ -967,10 +968,10 @@ defm reproduce_compressed : smDashWithOpt<"reproduce-compressed", "reproduce_com
                             MetaVarName<"<tarfilename>">,
                             Group<grp_extendedopts>;
 defm reproduce_on_fail : smDashWithOpt<"reproduce-on-fail", "reproduce_on_fail",
-                                   "Write reproduce tar file when link fails"
+                                   "Write reproduce tar file when link fails "
                                    "containing input files and command line "
                                    "options to inspect and re-link.">,
-                            MetaVarName<"<tarfilename>">,
+                            MetaVarName<"<tarfilename>|default">,
                             Group<grp_extendedopts>;
 defm mapping_file : smDashWithOpt<"mapping-file", "mapping_file",
                                   "Reproduce link using a mapping file">,
@@ -1351,6 +1352,12 @@ def grp_miscfeatures : OptionGroup<"otherfeatures">, HelpText<"Misc Features">;
 def allow_incompatible_section_mix
     : Flag<["-", "--"], "allow-incompatible-section-mix">,
       HelpText<"Allow incompatible section mix">,
+      Group<grp_miscfeatures>;
+
+defm ArchiveMemberReportFile
+    : smDashWithOpt<"archive-member-report", "ArchiveMemberReportFile",
+                    "Emit JSON report for archive members pulled in by symbols">,
+      MetaVarName<"<filename>">,
       Group<grp_miscfeatures>;
 
 //===----------------------------------------------------------------------===//
