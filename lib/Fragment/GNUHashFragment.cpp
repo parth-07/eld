@@ -157,7 +157,9 @@ template <class ELFT> void GNUHashFragment<ELFT>::sortSymbols() {
   // to deduce it correctly.
   std::vector<ResolveInfo *>::iterator Mid = std::stable_partition(
       DynamicSymbols.begin(), DynamicSymbols.end(),
-      [](const ResolveInfo *S) { return (S->isDyn() || S->isUndef()); });
+      [](const ResolveInfo *S) {
+        return (S->isDyn() || S->isUndef()) && !S->needsCanonicalPLT();
+      });
   if (Mid == DynamicSymbols.end())
     return;
   for (auto I = Mid, E = DynamicSymbols.end(); I != E; ++I) {

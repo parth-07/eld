@@ -1,0 +1,23 @@
+#---FunctionAddress.test------------- Canonical PLT ----------------#
+#BEGIN_COMMENT
+# A direct executable reference to a DSO function uses the PLT as the
+# canonical address in .dynsym. A call-only PLT entry must stay zero-valued.
+#END_COMMENT
+#START_TEST
+RUN: %clang %clangopts -o %t.foo.o -c %p/Inputs/foo.c -fPIC
+RUN: %link %linkopts -o %t.foo.so %t.foo.o -shared
+
+RUN: %clang %clangopts -o %t.addr.o -c %p/Inputs/address.c -fno-pic
+RUN: %link %linkopts -o %t.addr.out %t.addr.o %t.foo.so -e main \
+RUN:   --section-start .plt=0x40000
+RUN: %readelf --dyn-syms -W %t.addr.out | %filecheck %s --check-prefix=DIRECT
+
+RUN: %clang %clangopts -o %t.call.o -c %p/Inputs/call.c -fno-pic
+RUN: %link %linkopts -o %t.call.out %t.call.o %t.foo.so -e main \
+RUN:   --section-start .plt=0x40000
+RUN: %readelf --dyn-syms -W %t.call.out | %filecheck %s --check-prefix=CALL
+#END_TEST
+
+DIRECT: {{.*}}: {{0*400[0-9a-f]+}} {{.*}}FUNC{{.*}}UND foo
+
+CALL: {{.*}}: {{0+}} {{.*}}FUNC{{.*}}UND foo

@@ -117,6 +117,21 @@ static ARMGOT *CreateGOT(ELFObjectFile *Obj, Relocation &pReloc, bool pHasRel,
   return G;
 }
 
+static bool shouldMarkNeedsCanonicalPLT(const LinkerConfig &Config,
+                                        const ResolveInfo *Info) {
+  return Config.codeGenType() == LinkerConfig::Exec && Info->isDyn() &&
+         Info->type() == ResolveInfo::Function &&
+         (Info->reserved() & Relocator::ReservePLT);
+}
+
+static void createPLTIfNeeded(ARMGNULDBackend &Target, ELFObjectFile *Obj,
+                              ResolveInfo *Info) {
+  if (Info->reserved() & Relocator::ReservePLT)
+    return;
+  Target.createPLT(Obj, Info);
+  Info->setReserved(Info->reserved() | Relocator::ReservePLT);
+}
+
 static Relocator::DWord
 helper_extract_movw_movt_addend(Relocator::DWord pTarget) {
   // imm16: [19-16][11-0]
@@ -510,19 +525,12 @@ void ARMRelocator::scanGlobalReloc(InputFile &pInput, Relocation::Type Type,
     // Absolute relocation type, symbol may needs PLT entry or
     // dynamic relocation entry
     if (isSymbolPreemptible && (rsym->type() == ResolveInfo::Function)) {
-      // create plt for this symbol if it does not have one
-      if (!(rsym->reserved() & ReservePLT)) {
-        // Symbol needs PLT entry, we need to reserve a PLT entry
-        // and the corresponding GOT and dynamic relocation entry
-        // in .got and .rel.plt.
-        m_Target.createPLT(Obj, rsym);
-        // set PLT bit
-        rsym->setReserved(rsym->reserved() | ReservePLT);
-      }
+      createPLTIfNeeded(m_Target, Obj, rsym);
     }
 
-    if (getTarget().symbolNeedsDynRel(*rsym, (rsym->reserved() & ReservePLT),
-                                      true)) {
+    bool NeedsDynRel = getTarget().symbolNeedsDynRel(
+        *rsym, (rsym->reserved() & ReservePLT), true);
+    if (NeedsDynRel) {
       if (getTarget().symbolNeedsCopyReloc(pReloc, *rsym)) {
         // check if the option -z nocopyreloc is given
         if (config().options().hasNoCopyReloc()) {
@@ -543,6 +551,8 @@ void ARMRelocator::scanGlobalReloc(InputFile &pInput, Relocation::Type Type,
         rsym->setReserved(rsym->reserved() | ReserveRel);
         getTarget().checkAndSetHasTextRel(pSection);
       }
+    } else if (shouldMarkNeedsCanonicalPLT(config(), rsym)) {
+      rsym->setNeedsCanonicalPLT();
     }
     return;
   }
@@ -610,8 +620,13 @@ void ARMRelocator::scanGlobalReloc(InputFile &pInput, Relocation::Type Type,
     std::lock_guard<std::mutex> relocGuard(m_RelocMutex);
     // Relative addressing relocation, may needs dynamic relocation
 
-    if (getTarget().symbolNeedsDynRel(*rsym, (rsym->reserved() & ReservePLT),
-                                      false)) {
+    bool isSymbolPreemptible = m_Target.isSymbolPreemptible(*rsym);
+    if (isSymbolPreemptible && rsym->type() == ResolveInfo::Function)
+      createPLTIfNeeded(m_Target, Obj, rsym);
+
+    bool NeedsDynRel = getTarget().symbolNeedsDynRel(
+        *rsym, (rsym->reserved() & ReservePLT), false);
+    if (NeedsDynRel) {
       // symbol needs dynamic relocation entry, reserve an entry in .rel.dyn
       if (getTarget().symbolNeedsCopyReloc(pReloc, *rsym)) {
         CopyRelocs.insert(rsym);
@@ -621,6 +636,8 @@ void ARMRelocator::scanGlobalReloc(InputFile &pInput, Relocation::Type Type,
         rsym->setReserved(rsym->reserved() | ReserveRel);
         getTarget().checkAndSetHasTextRel(pSection);
       }
+    } else if (shouldMarkNeedsCanonicalPLT(config(), rsym)) {
+      rsym->setNeedsCanonicalPLT();
     }
     return;
   }

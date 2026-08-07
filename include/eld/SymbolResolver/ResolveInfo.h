@@ -177,6 +177,12 @@ public:
     return ((ThisBitField & IFuncNeedsGOTMask) == IFuncNeedsGOTMask);
   }
 
+  void setNeedsCanonicalPLT() { ThisBitField |= NeedsCanonicalPLTFlag; }
+
+  bool needsCanonicalPLT() const {
+    return ((ThisBitField & NeedsCanonicalPLTMask) == NeedsCanonicalPLTMask);
+  }
+
   // -----  observers  ----- //
   bool isNull() const;
 
@@ -369,8 +375,12 @@ private:
   static const uint32_t IFuncNeedsGOTOffset = 21;
   static const uint32_t IFuncNeedsGOTMask = 1 << IFuncNeedsGOTOffset;
 
+
+  static const uint32_t NeedsCanonicalPLTOffset = 22;
+  static const uint32_t NeedsCanonicalPLTMask = 1 << NeedsCanonicalPLTOffset;
+
 #ifdef ELD_ENABLE_SYMBOL_VERSIONING
-  static const uint32_t IsDefaultVersionOffset = 22;
+  static const uint32_t IsDefaultVersionOffset = 23;
   static const uint32_t IsDefaultVersionMask = 1 << IsDefaultVersionOffset;
 #endif
 
@@ -378,10 +388,10 @@ private:
 
 #ifdef ELD_ENABLE_SYMBOL_VERSIONING
   // Bits are from 0-22.
-  static const uint32_t ResolveMask = 0x7FFFFF;
+  static const uint32_t ResolveMask = 0xfFFFFF;
 #else
   // Bits are from 0-21.
-  static const uint32_t ResolveMask = 0x3FFFFF;
+  static const uint32_t ResolveMask = 0x7FFFFF;
 #endif
 
 public:
@@ -404,6 +414,7 @@ public:
   static const uint32_t InbitcodeFlag = 1 << InBitcodeOffset;
   static const uint32_t PreserveFlag = 1 << PreserveOffset;
   static const uint32_t IFuncDirectRefFlag = 1 << IFuncDirectRefOffset;
+  static const uint32_t NeedsCanonicalPLTFlag = 1 << NeedsCanonicalPLTOffset;
   static const uint32_t IFuncNeedsGOTFlag = 1 << IFuncNeedsGOTOffset;
   ResolveInfo();
   ResolveInfo(llvm::StringRef SymbolName);

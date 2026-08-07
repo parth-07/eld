@@ -1288,7 +1288,10 @@ void GNULDBackend::emitSymbol32(llvm::ELF::Elf32_Sym &pSym, LDSymbol *pSymbol,
 #endif
     }
   }
-  if ((pSymbol->resolveInfo()->isUndef()) || (pSymbol->isDyn()))
+  ResolveInfo *Info = pSymbol->resolveInfo();
+  if (Info->needsCanonicalPLT())
+    pSym.st_value = static_cast<llvm::ELF::Elf32_Addr>(getPLTAddr(Info));
+  else if (Info->isUndef() || pSymbol->isDyn())
     pSym.st_value = 0;
   else
     pSym.st_value = pSymbol->value();
@@ -1325,7 +1328,10 @@ void GNULDBackend::emitSymbol64(llvm::ELF::Elf64_Sym &pSym, LDSymbol *pSymbol,
 #endif
     }
   }
-  if ((pSymbol->resolveInfo()->isUndef()) || (pSymbol->isDyn()))
+  ResolveInfo *Info = pSymbol->resolveInfo();
+  if (Info->needsCanonicalPLT())
+    pSym.st_value = static_cast<llvm::ELF::Elf64_Addr>(getPLTAddr(Info));
+  else if (Info->isUndef() || pSymbol->isDyn())
     pSym.st_value = 0;
   else
     pSym.st_value = pSymbol->value();

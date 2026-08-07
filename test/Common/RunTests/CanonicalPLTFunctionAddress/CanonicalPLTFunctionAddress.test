@@ -1,0 +1,15 @@
+#---CanonicalPLTFunctionAddress.test------- RunTest ----------------#
+#BEGIN_COMMENT
+# A DSO and executable must agree on the address of an imported function when
+# the executable takes the function address directly.
+#END_COMMENT
+REQUIRES: run_test, linux, arm
+#START_TEST
+RUN: %run_cc %clangopts -o %t.lib.o -fPIC -c %p/Inputs/lib.c
+RUN: %run_cc %clangopts -o %t.lib.so -shared %t.lib.o
+RUN: %run_cc %clangopts -o %t.main.o -fno-pic -c %p/Inputs/main.c
+RUN: %run_cc %clangopts -o %t.out -no-pie %t.main.o %t.lib.so
+RUN: %run %t.out | %filecheck %s
+#END_TEST
+
+CHECK: equal
