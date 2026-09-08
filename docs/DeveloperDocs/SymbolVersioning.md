@@ -3,6 +3,116 @@
 All symbol versioning related functionality is guarded by the `ELD_ENABLE_SYMBOL_VERSIONING`
 build macro.
 
+## What is symbol versioning?
+
+Symbol versioning lets a single shared library export more than one definition
+of the same symbol name, each tagged with a *version*, and lets a client bind
+to a specific one. This is how a library can change the behavior of a function
+while keeping old binaries working: the old binaries keep resolving to the old
+version, and newly linked binaries pick up the new one — all from the same
+`.so`, with no SONAME bump.
+
+A versioned symbol name has one of two forms:
+
+- **default** version (`foo@@V2`): satisfies references to both `foo@V2` and
+  the plain, unversioned `foo`. There is at most one default version per name;
+  it is the version a fresh link picks up when the source just writes `foo`.
+- **non-default** version (`foo@V1`): satisfies only the explicit `foo@V1`
+  reference. It exists so binaries previously linked against `foo@V1` keep
+  resolving to that older definition.
+
+## How to use symbol versioning
+
+A library attaches versions to its symbols in one of two ways: a *version
+script*, or `.symver` directives in the source. When a library needs to export
+several versions of the *same* name, `.symver` is required.
+
+The example below builds a library `libfoo` that exports both `foo@V1` and the
+default `foo@@V2`, then links two executables against it: one that takes the
+default (`foo@@V2`) implicitly, and one that explicitly pins `foo@V1`.
+
+**The library.** `.symver` gives each C function a versioned export name, and
+the version script declares the version nodes `V1` and `V2`:
+
+```c
+// foo.c
+__asm__(".symver foo_v1, foo@V1");
+int foo_v1() { return 1; }
+
+__asm__(".symver foo_v2, foo@@V2");   // @@ marks the default
+int foo_v2() { return 2; }
+```
+
+```
+// vs.t
+V1 { global: foo; };
+V2 { global: foo; };
+```
+
+```bash
+clang -c -fPIC foo.c -o foo.o
+ld.eld -m elf_x86_64 -shared --version-script vs.t -o libfoo.so foo.o
+```
+
+The dynamic symbol table now carries both versions, and `.gnu.version_d`
+defines `V1` and `V2`:
+
+```console
+$ llvm-readelf --dyn-syms libfoo.so | grep 'foo@'
+     3: 00000000000001f0    11 FUNC    GLOBAL DEFAULT     4 foo@V1
+     4: 0000000000000200    11 FUNC    GLOBAL DEFAULT     4 foo@@V2
+
+$ llvm-readelf --version-info libfoo.so
+...
+Version definition section '.gnu.version_d' contains 3 entries:
+  0x0000: Rev: 1  Flags: BASE  Index: 1  Cnt: 1  Name: libfoo.so
+  0x0014: Rev: 1  Flags: none  Index: 2  Cnt: 1  Name: V1
+  0x0028: Rev: 1  Flags: none  Index: 3  Cnt: 1  Name: V2
+```
+
+**Executable using the default (`foo@@V2`).** A plain reference to `foo` binds
+to the default version:
+
+```c
+// use_default.c
+extern int foo();
+int main() { return foo(); }
+```
+
+```bash
+clang -c use_default.c -o use_default.o
+ld.eld -m elf_x86_64 -o use_default.out use_default.o libfoo.so
+```
+
+```console
+$ llvm-readelf -r use_default.out | grep foo
+... R_X86_64_JUMP_SLOT  0000000000000000 foo@V2 + 0
+```
+
+**Executable pinning `foo@V1`.** A `.symver` on the *reference* forces the
+older version:
+
+```c
+// use_v1.c
+__asm__(".symver foo, foo@V1");
+extern int foo();
+int main() { return foo(); }
+```
+
+```bash
+clang -c use_v1.c -o use_v1.o
+ld.eld -m elf_x86_64 -o use_v1.out use_v1.o libfoo.so
+```
+
+```console
+$ llvm-readelf -r use_v1.out | grep foo
+... R_X86_64_JUMP_SLOT  0000000000000000 foo@V1 + 0
+```
+
+Both executables link against the same `libfoo.so`, but each is bound to a
+different definition of `foo` — the loader honors the version recorded in each
+executable's `.gnu.version` / `.gnu.version_r` at runtime.
+
 ## Symbol resolution of versioned symbols
 
 A versioned symbol is of two types:
