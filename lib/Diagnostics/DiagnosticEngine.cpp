@@ -287,6 +287,10 @@ DiagnosticEngine::DiagIDType Diag::Counter = 0;
 #include "eld/Diagnostics/DiagTraceTrampolines.inc"
 #ifdef ELD_ENABLE_SYMBOL_VERSIONING
 #include "eld/Diagnostics/DiagSymbolVersioning.inc"
+#else
+DIAG(error_undefined_version, DiagnosticEngine::Error,
+     "version script assignment of '%0' to symbol '%1' failed: symbol not "
+     "defined")
 #endif
 #include "eld/Diagnostics/DiagVerbose.inc"
 #include "eld/Diagnostics/DiagWriters.inc"
