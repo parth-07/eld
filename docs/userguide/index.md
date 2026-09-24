@@ -55,5 +55,5 @@ DeveloperDocs/*
 - {ref}`modindex`
 - {ref}`search`
 ```{eval-rst}
-- `Build Dashboard <dash/dash.html>`_
+- `Build Dashboard </dash/dash.html>`_
 ```
