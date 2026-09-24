@@ -11,7 +11,7 @@ permissions:
 jobs:
   update-dashboard-data:
     runs-on: ubuntu-latest
-    if: github.repository == 'qualcomm/eld'
+    # if: github.repository == 'qualcomm/eld'
 
     steps:
       - name: Checkout ELD
