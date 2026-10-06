@@ -4127,3 +4127,4 @@ Mon Oct  5 15:33:11 UTC 2026 -> Add data lock for picolibc hexagon build status 
 Tue Oct  6 13:54:01 UTC 2026 -> Add data lock for picolibc x86_64 build status data to be written
 Tue Oct  6 13:54:23 UTC 2026 -> Add data lock for picolibc aarch64 build status data to be written
 Tue Oct  6 13:54:47 UTC 2026 -> Add data lock for picolibc riscv32 build status data to be written
+Tue Oct  6 13:54:54 UTC 2026 -> Add data lock for picolibc arm build status data to be written
