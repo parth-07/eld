@@ -2,7 +2,7 @@
   "summary": {
     "artifactCount": 6,
     "activeArtifacts": 6,
-    "totalSize": "80.56 MB"
+    "totalSize": "80.55 MB"
   },
   "workflows": [
     {
@@ -10,39 +10,39 @@
       "artifacts": [
         {
           "name": "github-pages",
-          "size": "13.43 MB",
-          "createdAt": "2026-10-16T10:12:08Z",
-          "expiresAt": "2026-10-17T10:12:06Z"
+          "size": "13.42 MB",
+          "createdAt": "2026-10-17T09:46:09Z",
+          "expiresAt": "2026-10-18T09:46:08Z"
+        },
+        {
+          "name": "github-pages",
+          "size": "13.42 MB",
+          "createdAt": "2026-10-17T05:06:57Z",
+          "expiresAt": "2026-10-18T05:06:55Z"
+        },
+        {
+          "name": "github-pages",
+          "size": "13.42 MB",
+          "createdAt": "2026-10-17T00:51:08Z",
+          "expiresAt": "2026-10-18T00:51:07Z"
         },
         {
           "name": "github-pages",
           "size": "13.43 MB",
-          "createdAt": "2026-10-16T05:12:10Z",
-          "expiresAt": "2026-10-17T05:12:09Z"
+          "createdAt": "2026-10-16T22:15:31Z",
+          "expiresAt": "2026-10-17T22:15:29Z"
         },
         {
           "name": "github-pages",
           "size": "13.43 MB",
-          "createdAt": "2026-10-16T00:51:18Z",
-          "expiresAt": "2026-10-17T00:51:16Z"
+          "createdAt": "2026-10-16T19:04:33Z",
+          "expiresAt": "2026-10-17T19:04:31Z"
         },
         {
           "name": "github-pages",
           "size": "13.43 MB",
-          "createdAt": "2026-10-15T22:43:24Z",
-          "expiresAt": "2026-10-16T22:43:23Z"
-        },
-        {
-          "name": "github-pages",
-          "size": "13.43 MB",
-          "createdAt": "2026-10-15T19:30:14Z",
-          "expiresAt": "2026-10-16T19:30:12Z"
-        },
-        {
-          "name": "github-pages",
-          "size": "13.43 MB",
-          "createdAt": "2026-10-15T15:22:28Z",
-          "expiresAt": "2026-10-16T15:22:25Z"
+          "createdAt": "2026-10-16T15:02:26Z",
+          "expiresAt": "2026-10-17T15:02:24Z"
         }
       ]
     }
