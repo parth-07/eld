@@ -1,8 +1,8 @@
 {
   "summary": {
-    "artifactCount": 7,
-    "activeArtifacts": 7,
-    "totalSize": "93.99 MB"
+    "artifactCount": 6,
+    "activeArtifacts": 6,
+    "totalSize": "80.52 MB"
   },
   "workflows": [
     {
@@ -11,44 +11,38 @@
         {
           "name": "github-pages",
           "size": "13.42 MB",
+          "createdAt": "2026-10-20T13:54:27Z",
+          "expiresAt": "2026-10-21T13:54:25Z"
+        },
+        {
+          "name": "github-pages",
+          "size": "13.42 MB",
+          "createdAt": "2026-10-20T08:55:17Z",
+          "expiresAt": "2026-10-21T08:55:14Z"
+        },
+        {
+          "name": "github-pages",
+          "size": "13.42 MB",
+          "createdAt": "2026-10-20T03:10:51Z",
+          "expiresAt": "2026-10-21T03:10:49Z"
+        },
+        {
+          "name": "github-pages",
+          "size": "13.41 MB",
+          "createdAt": "2026-10-19T23:59:23Z",
+          "expiresAt": "2026-10-20T23:59:21Z"
+        },
+        {
+          "name": "github-pages",
+          "size": "13.42 MB",
+          "createdAt": "2026-10-19T20:45:30Z",
+          "expiresAt": "2026-10-20T20:45:28Z"
+        },
+        {
+          "name": "github-pages",
+          "size": "13.42 MB",
           "createdAt": "2026-10-19T15:02:41Z",
           "expiresAt": "2026-10-20T15:02:39Z"
-        },
-        {
-          "name": "github-pages",
-          "size": "13.43 MB",
-          "createdAt": "2026-10-19T07:02:44Z",
-          "expiresAt": "2026-10-20T07:02:43Z"
-        },
-        {
-          "name": "github-pages",
-          "size": "13.43 MB",
-          "createdAt": "2026-10-19T01:56:33Z",
-          "expiresAt": "2026-10-20T01:56:31Z"
-        },
-        {
-          "name": "github-pages",
-          "size": "13.43 MB",
-          "createdAt": "2026-10-18T23:49:31Z",
-          "expiresAt": "2026-10-19T23:49:30Z"
-        },
-        {
-          "name": "github-pages",
-          "size": "13.43 MB",
-          "createdAt": "2026-10-18T21:57:53Z",
-          "expiresAt": "2026-10-19T21:57:52Z"
-        },
-        {
-          "name": "github-pages",
-          "size": "13.43 MB",
-          "createdAt": "2026-10-18T19:44:01Z",
-          "expiresAt": "2026-10-19T19:43:59Z"
-        },
-        {
-          "name": "github-pages",
-          "size": "13.43 MB",
-          "createdAt": "2026-10-18T17:37:15Z",
-          "expiresAt": "2026-10-19T17:37:13Z"
         }
       ]
     }
