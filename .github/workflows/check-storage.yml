@@ -1,0 +1,37 @@
+name: Check workflow storage
+
+on:
+  pull_request: {} # Uncomment to build ELD PR branch.
+
+
+jobs:
+  check-storage:
+    runs-on: ubuntu-22.04
+    env:
+      BASE_BRANCH_NAME: ${{ github.event.pull_request.base.ref }}
+      ELD_REPO: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
+      ELD_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
+      SCRIPTS_DIR: ${{ github.workspace }}/llvm-project/llvm/tools/eld/.github/workflows/scripts
+
+    steps:
+      - name: CPU and Memory information
+        run: |
+          echo "Number of CPUs:"
+          nproc --all # or grep -c ^processor /proc/cpuinfo
+          echo "Memory information:"
+          free -h # or cat /proc/meminfo
+
+
+      - name: Write file repeatedly and check storage
+        run: |
+          df -h .
+          echo ""
+          for ((i=0; i < 18; ++i)) ; do
+            echo "$i'th iteration"
+            dd if=/dev/zero count=5 bs=1G | tr '\0' '1' > out.$i.bin
+            df -h .
+            echo ""
+          done
+
+
+
