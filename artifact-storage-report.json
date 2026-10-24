@@ -1,20 +1,8 @@
 {
   "summary": {
-    "artifactCount": 1,
-    "activeArtifacts": 1,
-    "totalSize": "19.49 MB"
+    "artifactCount": 0,
+    "activeArtifacts": 0,
+    "totalSize": "0.00 B"
   },
-  "workflows": [
-    {
-      "name": "pages build and deployment",
-      "artifacts": [
-        {
-          "name": "github-pages",
-          "size": "19.49 MB",
-          "createdAt": "2026-10-22T17:41:28Z",
-          "expiresAt": "2026-10-23T17:41:26Z"
-        }
-      ]
-    }
-  ]
+  "workflows": []
 }
