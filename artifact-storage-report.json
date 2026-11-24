@@ -1,8 +1,8 @@
 {
   "summary": {
-    "artifactCount": 3,
-    "activeArtifacts": 3,
-    "totalSize": "58.49 MB"
+    "artifactCount": 2,
+    "activeArtifacts": 2,
+    "totalSize": "39.00 MB"
   },
   "workflows": [
     {
@@ -11,20 +11,14 @@
         {
           "name": "github-pages",
           "size": "19.50 MB",
-          "createdAt": "2026-11-23T15:28:12Z",
-          "expiresAt": "2026-11-24T15:28:10Z"
+          "createdAt": "2026-11-24T12:59:11Z",
+          "expiresAt": "2026-11-25T12:59:09Z"
         },
         {
           "name": "github-pages",
           "size": "19.50 MB",
-          "createdAt": "2026-11-23T04:10:39Z",
-          "expiresAt": "2026-11-24T04:10:37Z"
-        },
-        {
-          "name": "github-pages",
-          "size": "19.50 MB",
-          "createdAt": "2026-11-22T23:55:15Z",
-          "expiresAt": "2026-11-23T23:55:12Z"
+          "createdAt": "2026-11-24T02:43:51Z",
+          "expiresAt": "2026-11-25T02:43:48Z"
         }
       ]
     }
